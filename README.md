@@ -18,25 +18,29 @@ The following process is necessary to "bootstrap" a machine.
 
 1. Set the `BASE_DOMAIN` and `DATA_DIR` environment variables.
 
-2. Start the traefik service.
+2. Create the traefik network.
+
+   `docker network create traefik`
+
+3. Start the traefik service.
 
    `docker-compose -f traefik/docker-compose.yml up -d`
 
-3. Start keycloak.
+4. Start keycloak.
 
    `docker-compose -f keycloak/docker-compose.yml up -d app`
 
-4. Open `keycloak.$BASE_DOMAIN` and log in with admin / password.
+5. Open `keycloak.$BASE_DOMAIN` and log in with admin / password.
 
-5. Change the admin credentials.
+6. Change the admin credentials.
 
-6. Create a new client called `cloud-admin`
+7. Create a new client called `cloud-admin`
 
    - Access type: confidential
-   - Redirect URI: `http://forwardauth.vcap.me/*`
+   - Redirect URI: `http://forwardauth.$BASE_DOMAIN/*`
 
-7. Copy `keycloak/forward-auth.env.example` to `keycloak/forward-auth.env` and edit.
+8. Copy `keycloak/forward-auth.env.example` to `keycloak/forward-auth.env` and edit.
 
-8. Start keycloak forwardauth.
+9. Start keycloak forwardauth.
 
    `docker-compose -f keycloak/docker-compose.yml up -d`
