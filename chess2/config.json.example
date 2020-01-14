@@ -1,0 +1,12 @@
+{
+  "knex": {
+    "client": "sqlite3",
+    "connection": {
+      "filename": "/app/db/production.sqlite3"
+    },
+    "useNullAsDefault": true
+  },
+  "auth": {
+    "secret": "any random string"
+  }
+}

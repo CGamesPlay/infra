@@ -1,0 +1,18 @@
+version: "3.5"
+
+services:
+  app:
+    image: chess2:latest
+    volumes:
+      - ./config.json:/app/config/production.json
+      - ${DATA_DIR}/chess2:/app/db
+    networks:
+      - traefik
+    restart: on-failure
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.simple.rule=Host(`api.chess2online.com`)
+
+networks:
+  traefik:
+    external: true
