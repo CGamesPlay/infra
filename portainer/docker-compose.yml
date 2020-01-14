@@ -14,6 +14,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.subdomain=portainer
+      - traefik.http.routers.portainer.entrypoints=https
+      - traefik.http.routers.portainer.tls=true
+      - traefik.http.routers.portainer.tls.certresolver=le
       - traefik.http.routers.portainer.middlewares=auth@docker
 
 networks:
