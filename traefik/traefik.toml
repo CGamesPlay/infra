@@ -5,6 +5,14 @@ sendAnonymousUsage = true
 [entryPoints.http]
 address = ":80"
 
+[entryPoints.https]
+address = ":443"
+
+[certificatesResolvers.le.acme]
+email = "contact@cgamesplay.com"
+storage = "/etc/traefik/acme/acme.json"
+[certificatesResolvers.le.acme.tlsChallenge]
+
 [providers.docker]
 exposedByDefault = false
 defaultRule = "Host(`{{ coalesce (index .Labels \"traefik.subdomain\") .Name }}.{{ env \"BASE_DOMAIN\" }}`)"

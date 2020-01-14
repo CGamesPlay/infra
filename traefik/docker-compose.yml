@@ -11,11 +11,21 @@ services:
     volumes:
       - "./traefik.toml:/etc/traefik/traefik.toml:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - ${DATA_DIR}/traefik/acme:/etc/traefik/acme
     environment:
       - BASE_DOMAIN=${BASE_DOMAIN}
     networks:
       - traefik
     restart: on-failure
+    labels:
+      # This sets up an http -> https redirect for all endpoints.
+      - traefik.enable=true
+      - traefik.http.routers.https-only.rule=HostRegexp(`{host:.*}`)
+      - traefik.http.routers.https-only.priority=99
+      - traefik.http.routers.https-only.entrypoints=http
+      - traefik.http.routers.https-only.middlewares=https-redirect
+      - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.https-redirect.redirectscheme.permanent=true
 
 networks:
   traefik:
