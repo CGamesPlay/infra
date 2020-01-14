@@ -1,0 +1,19 @@
+[global]
+checkNewVersion = true
+sendAnonymousUsage = true
+
+[entryPoints.http]
+address = ":80"
+
+[providers.docker]
+exposedByDefault = false
+defaultRule = "Host(`{{ coalesce (index .Labels \"traefik.subdomain\") .Name }}.{{ env \"BASE_DOMAIN\" }}`)"
+network = "traefik"
+
+[api]
+dashboard = true
+
+[log]
+#level = "DEBUG"
+
+[accessLog]

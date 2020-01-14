@@ -1,0 +1,22 @@
+version: "3.2"
+
+services:
+
+  traefik:
+    image: "traefik:v2.1"
+    container_name: "traefik"
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - "./traefik.toml:/etc/traefik/traefik.toml:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    environment:
+      - BASE_DOMAIN=${BASE_DOMAIN}
+    networks:
+      - traefik
+    restart: on-failure
+
+networks:
+  traefik:
+    external: true

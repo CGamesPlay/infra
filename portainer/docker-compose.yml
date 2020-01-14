@@ -1,0 +1,21 @@
+version: "3.5"
+
+services:
+
+  app:
+    image: portainer/portainer
+    networks:
+      - traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DATA_DIR}/portainer:/data
+    entrypoint: [/portainer, --no-auth]
+    restart: on-failure
+    labels:
+      - traefik.enable=true
+      - traefik.subdomain=portainer
+      - traefik.http.routers.portainer.middlewares=auth@docker
+
+networks:
+  traefik:
+    external: true

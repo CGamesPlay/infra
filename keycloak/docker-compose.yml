@@ -1,0 +1,76 @@
+version: "3.5"
+
+services:
+
+  app:
+    image: "jboss/keycloak"
+    environment:
+      - KEYCLOAK_HOSTNAME=keycloak.${BASE_DOMAIN}
+    env_file: ./keycloak.env
+    labels:
+      - traefik.enable=true
+      - traefik.subdomain=keycloak
+    #volumes:
+      #- /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - db
+    networks:
+      - internal
+      - traefik
+    restart: on-failure
+
+  db:
+    env_file: ./keycloak.env
+    image: postgres:10.1
+    volumes:
+      - ${DATA_DIR}/keycloak/db:/var/lib/postgresql/data
+      #- /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+    restart: on-failure
+
+  forwardauth:
+    image: funkypenguin/traefik-forward-auth
+    env_file: ./forward-auth.env
+    environment:
+      - OIDC_ISSUER=http://keycloak.${BASE_DOMAIN}/auth/realms/master
+      - AUTH_HOST=forwardauth.${BASE_DOMAIN}
+      - COOKIE_DOMAINS=${BASE_DOMAIN}
+    networks:
+      - traefik
+    restart: on-failure
+    depends_on:
+      - app
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.auth.loadbalancer.server.port=4181
+      - traefik.subdomain=forwardauth
+      # The auth router actually needs to use itself as a middleware.
+      - traefik.http.routers.auth.middlewares=auth@docker
+      - traefik.http.middlewares.auth.forwardauth.address=http://forwardauth:4181/auth
+      # Set up the admin interface rule here, since we have to create the auth
+      # middleware after traefik has already started.
+      - traefik.http.routers.api.rule=Host(`traefik.${BASE_DOMAIN}`)
+      - traefik.http.routers.api.middlewares=auth@docker
+      - traefik.http.routers.api.service=api@internal
+    entrypoint: |-
+      sh -c 'sh -s <<EOF
+      trap "break;exit" SIGHUP SIGINT SIGTERM
+      # Wait for keycloak to start up
+      while !  wget -O /dev/null -q http://app:8080/; do
+        sleep 10
+      done
+      # Set up a host entry to hit traefik as the main keycloak server
+      getent hosts traefik | awk '\''{ print \$$1 " keycloak.${BASE_DOMAIN}" }'\'' >> /etc/hosts
+      # And this, see https://github.com/golang/go/issues/22846#issuecomment-346377144
+      echo "hosts: files dns" > /etc/nsswitch.conf
+      # Adjust the command line arguments to disable HTTPS or increase the log
+      # level.
+      ./traefik-forward-auth -cookie-secure=false
+      EOF'
+
+networks:
+  traefik:
+    external: true
+  internal:
+    internal: true
