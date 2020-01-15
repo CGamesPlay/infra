@@ -20,29 +20,6 @@ services:
       - internal
     restart: on-failure
 
-    labels:
-      # The following keys are all required for all exposed services.
-      - traefik.enable=true
-      - traefik.http.routers.simple.entrypoints=https
-      - traefik.http.routers.simple.tls=true
-      - traefik.http.routers.simple.tls.certresolver=le
-
-      # The default subdomain is generated from the container name and project
-      # name (simple-example for this service). You can provide a different name
-      # using this setting.
-      - traefik.subdomain=example
-
-      # If the service exposes more than a single port, you must specify which
-      # one is the HTTP port using this.
-      #- traefik.http.services.simple.loadbalancer.server.port=80
-
-      # If this isn't enough flexibility you can also set a custom rule.
-      #- traefik.http.routers.simple.rule=Host(`example.com`)
-
-      # For services where you want to use the system-level access control, just
-      # enable the middleware.
-      #- traefik.http.routers.simple.middlewares=auth@docker
-
 networks:
   # This network has to be pulled in from outside into every container that
   # wants to be hosted through traefik.

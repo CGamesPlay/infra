@@ -11,13 +11,6 @@ services:
       - ${DATA_DIR}/portainer:/data
     entrypoint: [/portainer, --no-auth]
     restart: on-failure
-    labels:
-      - traefik.enable=true
-      - traefik.subdomain=portainer
-      - traefik.http.routers.portainer.entrypoints=https
-      - traefik.http.routers.portainer.tls=true
-      - traefik.http.routers.portainer.tls.certresolver=le
-      - traefik.http.routers.portainer.middlewares=auth@docker
 
 networks:
   traefik:

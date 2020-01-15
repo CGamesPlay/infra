@@ -1,0 +1,10 @@
+version: "3.5"
+
+services:
+  app:
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.chess2.entrypoints=https
+      - traefik.http.routers.chess2.tls=true
+      - traefik.http.routers.chess2.tls.certresolver=le
+      - traefik.http.routers.chess2.rule=Host(`api.chess2online.com`)

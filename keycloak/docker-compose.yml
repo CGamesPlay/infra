@@ -7,12 +7,6 @@ services:
     environment:
       - KEYCLOAK_HOSTNAME=keycloak.${BASE_DOMAIN}
     env_file: ./keycloak.env
-    labels:
-      - traefik.enable=true
-      - traefik.subdomain=keycloak
-      - traefik.http.routers.keycloak.entrypoints=https
-      - traefik.http.routers.keycloak.tls=true
-      - traefik.http.routers.keycloak.tls.certresolver=le
     depends_on:
       - db
     networks:
@@ -31,9 +25,8 @@ services:
 
   forwardauth:
     image: funkypenguin/traefik-forward-auth
-    env_file: ./forward-auth.env
+    env_file: ./forward-auth.${CLOUD_ENV}.env
     environment:
-      - OIDC_ISSUER=https://keycloak.${BASE_DOMAIN}/auth/realms/master
       - AUTH_HOST=forwardauth.${BASE_DOMAIN}
       - COOKIE_DOMAINS=${BASE_DOMAIN}
     networks:
@@ -41,23 +34,6 @@ services:
     restart: on-failure
     depends_on:
       - app
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.auth.loadbalancer.server.port=4181
-      - traefik.subdomain=forwardauth
-      - traefik.http.routers.auth.tls=true
-      - traefik.http.routers.auth.tls.certresolver=le
-      # The auth router actually needs to use itself as a middleware.
-      - traefik.http.routers.auth.middlewares=auth@docker
-      - traefik.http.middlewares.auth.forwardauth.address=http://forwardauth:4181/auth
-      # Set up the admin interface rule here, since we have to create the auth
-      # middleware after traefik has already started.
-      - traefik.http.routers.api.rule=Host(`traefik.${BASE_DOMAIN}`)
-      - traefik.http.routers.api.middlewares=auth@docker
-      - traefik.http.routers.api.service=api@internal
-      - traefik.http.routers.api.entrypoints=https
-      - traefik.http.routers.api.tls=true
-      - traefik.http.routers.api.tls.certresolver=le
     entrypoint: |-
       sh -c 'sh -s <<EOF
       trap "break;exit" SIGHUP SIGINT SIGTERM

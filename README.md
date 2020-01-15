@@ -17,7 +17,10 @@ Services each live in their own directory, and are driven primarily by a `docker
 
 The following process is necessary to "bootstrap" a machine.
 
-1. Set the `BASE_DOMAIN` and `DATA_DIR` environment variables.
+1. Set up the environment variables:
+
+   1. `CLOUD_ENV` to either `dev` or `prod`.
+   2. `BASE_DOMAIN` and `DATA_DIR` based on your configuration.
 
 2. Create the traefik network.
 
@@ -25,11 +28,11 @@ The following process is necessary to "bootstrap" a machine.
 
 3. Start the traefik service.
 
-   `docker-compose -f traefik/docker-compose.yml up -d`
+   `./compose.sh traefik up -d`
 
 4. Start keycloak.
 
-   `docker-compose -f keycloak/docker-compose.yml up -d app`
+   `./compose.sh keycloak up -d app`
 
 5. Open `keycloak.$BASE_DOMAIN` and log in with admin / password.
 
@@ -40,8 +43,8 @@ The following process is necessary to "bootstrap" a machine.
    - Access type: confidential
    - Redirect URI: `http://forwardauth.$BASE_DOMAIN/*`
 
-8. Copy `keycloak/forward-auth.env.example` to `keycloak/forward-auth.env` and edit.
+8. Copy `keycloak/forward-auth.env.example` to `keycloak/forward-auth.$CLOUD_ENV.env` and edit.
 
 9. Start keycloak forwardauth.
 
-   `docker-compose -f keycloak/docker-compose.yml up -d`
+   `./compose.sh keycloak up -d`

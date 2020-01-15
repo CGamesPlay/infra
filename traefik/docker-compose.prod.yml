@@ -1,0 +1,14 @@
+version: "3.2"
+
+services:
+
+  traefik:
+    labels:
+      # This sets up an http -> https redirect for all endpoints.
+      - traefik.enable=true
+      - traefik.http.routers.https-only.rule=HostRegexp(`{host:.*}`)
+      - traefik.http.routers.https-only.priority=99
+      - traefik.http.routers.https-only.entrypoints=http
+      - traefik.http.routers.https-only.middlewares=https-redirect
+      - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.https-redirect.redirectscheme.permanent=true

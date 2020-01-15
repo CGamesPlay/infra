@@ -1,0 +1,32 @@
+version: "3.5"
+
+services:
+
+  app:
+    labels:
+      - traefik.enable=true
+      - traefik.subdomain=keycloak
+      - traefik.http.routers.keycloak.entrypoints=https
+      - traefik.http.routers.keycloak.tls=true
+      - traefik.http.routers.keycloak.tls.certresolver=le
+
+  forwardauth:
+    environment:
+      - OIDC_ISSUER=https://keycloak.${BASE_DOMAIN}/auth/realms/master
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.auth.loadbalancer.server.port=4181
+      - traefik.subdomain=forwardauth
+      - traefik.http.routers.auth.tls=true
+      - traefik.http.routers.auth.tls.certresolver=le
+      # The auth router actually needs to use itself as a middleware.
+      - traefik.http.routers.auth.middlewares=auth@docker
+      - traefik.http.middlewares.auth.forwardauth.address=http://forwardauth:4181/auth
+      # Set up the admin interface rule here, since we have to create the auth
+      # middleware after traefik has already started.
+      - traefik.http.routers.api.rule=Host(`traefik.${BASE_DOMAIN}`)
+      - traefik.http.routers.api.middlewares=auth@docker
+      - traefik.http.routers.api.service=api@internal
+      - traefik.http.routers.api.entrypoints=https
+      - traefik.http.routers.api.tls=true
+      - traefik.http.routers.api.tls.certresolver=le
