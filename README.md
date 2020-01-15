@@ -7,6 +7,7 @@ This is the repo I use for my personal cloud server, hosted as a VPS. This draws
 - Traefik load balancer, with dashboard protected by Keycloak.
 - Keycloak IDM.
 - Portainer management console.
+- Heimdall as a launcher.
 
 ## Deploying a new service
 

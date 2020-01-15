@@ -5,7 +5,7 @@ services:
   # This is the simplest possible exposed service. It does not rely on any other
   # containers and does not require access control.
   simple:
-    image: "containous/whoami"
+    image: containous/whoami
     volumes:
       # For configuration volumes checked into the repository, use relative
       # paths.
