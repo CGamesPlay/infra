@@ -13,6 +13,20 @@ This is the repo I use for my personal cloud server, hosted as a VPS. This draws
 
 Services each live in their own directory, and are driven primarily by a `docker-compose.yml` file. The `example` directory includes several configuration options that can be used to design other services.
 
+#### Environment variables
+
+##### `CLOUD_ENV`
+
+This is either `prod` or `dev`. Its primary use is changing the overrides file: `docker-compose.$CLOUD_ENV.yml`, but it's also available for use in the environment.
+
+##### `BASE_DOMAIN`
+
+This is the main domain that all services are rooted at. They will become subdomains under this.
+
+##### `DATA_DIR`
+
+This is a local path that can be used for persistent volumes. Best practice is for each stack to create volumes under a directory matching the stack name, so for example `${DATA_DIR}/myapp/db`.
+
 ## Starting from scratch
 
 The following process is necessary to "bootstrap" a machine.

@@ -1,0 +1,30 @@
+version: "3.5"
+
+services:
+
+  app:
+    image: monicahq/monicahq
+    env_file: ./monica.env
+    depends_on:
+      - db
+    volumes:
+      - ${DATA_DIR}/monica/app:/var/www/monica/storage
+    restart: on-failure
+    networks:
+      - traefik
+      - internal
+
+  db:
+    image: mysql:5.7
+    env_file: ./monica.env
+    volumes:
+      - ${DATA_DIR}/monica/db:/var/www/monica/storage
+    networks:
+      - internal
+    restart: on-failure
+
+networks:
+  traefik:
+    external: true
+  internal:
+    internal: true
