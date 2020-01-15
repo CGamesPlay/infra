@@ -1,0 +1,35 @@
+version: "3.5"
+
+services:
+
+  db:
+    image: postgres
+    restart: on-failure
+    volumes:
+      - ${DATA_DIR}/freshrss/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=freshrss
+      - POSTGRES_PASSWORD=freshrss
+      - POSTGRES_DB=freshrss
+    networks:
+      - internal
+
+  app:
+    image: freshrss/freshrss
+    restart: on-failure
+    networks:
+      - traefik
+      - internal
+    depends_on:
+      - db
+    volumes:
+      - ${DATA_DIR}/freshrss/app:/var/www/FreshRSS/data
+    environment:
+      - CRON_MIN=17,49
+      - TZ=Europe/Copenhagen
+
+networks:
+  traefik:
+    external: true
+  internal:
+    internal: true
