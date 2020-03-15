@@ -1,0 +1,11 @@
+version: "3.5"
+
+services:
+
+  app:
+    labels:
+      - traefik.enable=true
+      - traefik.subdomain=monica
+      - traefik.http.routers.monica.entrypoints=https
+      - traefik.http.routers.monica.tls=true
+      - traefik.http.routers.monica.tls.certresolver=le
