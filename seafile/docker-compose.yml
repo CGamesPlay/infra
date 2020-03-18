@@ -1,0 +1,53 @@
+version: "3.5"
+
+services:
+
+  seafile:
+    image: seafileltd/seafile-mc:latest
+    container_name: seafile
+    ports:
+      - 80
+    volumes:
+      - ${DATA_DIR}/seafile/seafile:/shared
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWD=db_dev
+      - TIME_ZONE=Etc/UTC
+    external_links:
+      # When accessing keycloak to do the OAuth exchange, access it through
+      # traefik, so that hostnames and ports match up.
+      - traefik:keycloak.${BASE_DOMAIN}
+    depends_on:
+      - db
+      - memcached
+    networks:
+      - internal
+      - traefik
+    restart: on-failure
+
+  db:
+    image: mariadb:10.1
+    environment:
+      - MYSQL_ROOT_PASSWORD=db_dev
+      - MYSQL_LOG_CONSOLE=true
+    volumes:
+      - ${DATA_DIR}/seafile/mysql:/var/lib/mysql
+    networks:
+      - internal
+    restart: on-failure
+
+  memcached:
+    image: memcached:1.5.6
+    entrypoint: memcached -m 256
+    networks:
+      - internal
+    restart: on-failure
+
+networks:
+  # This network has to be pulled in from outside into every container that
+  # wants to be hosted through traefik.
+  traefik:
+    external: true
+
+  internal:
+    internal: true

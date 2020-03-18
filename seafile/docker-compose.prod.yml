@@ -1,0 +1,12 @@
+version: "3.5"
+
+services:
+
+  seafile:
+    labels:
+      # The following keys are all required for all exposed services.
+      - traefik.enable=true
+      - traefik.http.routers.seafile.entrypoints=https
+      - traefik.http.routers.seafile.tls=true
+      - traefik.http.routers.seafile.tls.certresolver=le
+      - traefik.subdomain=seafile
