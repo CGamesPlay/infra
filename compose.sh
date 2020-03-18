@@ -10,4 +10,5 @@ compose_args="-f $project/docker-compose.yml"
 if [ -f $project/docker-compose.$CLOUD_ENV.yml ]; then
   compose_args="$compose_args -f $project/docker-compose.$CLOUD_ENV.yml"
 fi
+# Warning: docker-compose can't handle DOCKER_HOST=ssh://<profile>
 exec docker-compose $compose_args "$@"
