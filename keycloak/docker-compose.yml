@@ -12,7 +12,7 @@ services:
     networks:
       - internal
       - traefik
-    restart: on-failure
+    restart: always
 
   db:
     env_file: ./keycloak.env
