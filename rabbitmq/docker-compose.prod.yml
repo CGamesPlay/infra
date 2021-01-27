@@ -1,0 +1,10 @@
+version: "3.5"
+
+services:
+
+  rabbitmq:
+    labels:
+      # These labels are required in production to enable HTTPS support.
+      - traefik.http.routers.rabbitmq.entrypoints=https
+      - traefik.http.routers.rabbitmq.tls=true
+      - traefik.http.routers.rabbitmq.tls.certresolver=le

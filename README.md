@@ -13,6 +13,19 @@ This is the repo I use for my personal cloud server, hosted as a VPS. This draws
 
 Services each live in their own directory, and are driven primarily by a `docker-compose.yml` file. The `example` directory includes several configuration options that can be used to design other services.
 
+### Using the compose script
+
+This repository includes `compose.sh`, which is a thin wrapper around `docker-compose` which makes working with multiple stacks and environments easier. Use it as you would use `docker-compose`, but with the name of the stack as the first argument:
+
+```bash
+export CLOUD_ENV=prod
+./compose.sh traefik up -d
+./compose.sh traefik logs
+./compose.sh keycloak exec db /bin/sh
+```
+
+All arguments after the stack name are passed directly to `docker-compose`.
+
 #### Environment variables
 
 ##### `CLOUD_ENV`
