@@ -1,0 +1,6 @@
+packages:
+  - unzip
+  - net-tools
+  - docker.io
+runcmd:
+  - [ usermod, -aG, docker, ubuntu ]
