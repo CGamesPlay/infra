@@ -8,7 +8,7 @@
 # into a production environment on the remote host.
 set -uexo pipefail
 
-DC=eu-central-1
+DC=nbg1
 
 # Setup data directory {{{
 
@@ -72,6 +72,27 @@ vault write pki/roles/consul-${DC} \
     generate_lease=true \
     max_ttl=720h
 MTLS_DISABLED
+
+# }}}
+# Wireguard setup {{{
+
+# Wireguard setup is a work in progress.
+: <<'WIREGUARD_DISABLED'
+wg_master_key=$(wg genkey | tee data/wg_master.key)
+wg_master_pub=$(echo $wg_master_key | wg pubkey)
+wg_local_key=$(wg genkey | tee data/wg_local.key)
+
+[Interface]
+PrivateKey = $wg_local_key
+Address = 172.31.240.1/32
+DNS = 172.31.0.2
+
+[Peer]
+PublicKey = $wg_master_pub
+AllowedIPs = 172.31.0.0/16
+Endpoint = do.cgamesplay.com:51820
+PersistentKeepalive = 60
+WIREGUARD_DISABLED
 
 # }}}
 # Shutdown and create snapshot {{{

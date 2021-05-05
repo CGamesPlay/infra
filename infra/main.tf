@@ -6,82 +6,27 @@ terraform {
   }
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 3.27"
+    hcloud = {
+      source  = "hetznercloud/hcloud"
+      version = "1.26.0"
     }
   }
 
   required_version = ">= 0.14.9"
 }
 
-variable "aws_region" {
-  type = string
-  description = "region which will be used for all infrastructure"
-  default = "eu-central-1"
+provider "hcloud" {
+  token = var.hcloud_token
 }
 
-variable "aws_az" {
-  type = string
-  description = "availability zone which will be used for all infrastructure"
-  default = "eu-central-1a"
+variable "hcloud_token" {
+  type        = string
+  description = "token for use with hcloud"
 }
 
-variable "aws_keypair_name" {
-  type = string
-  description = "keypair which will be used for all instances"
-}
-
-provider "aws" {
-  profile = "default"
-  region  = var.aws_region
-}
-
-data "aws_ami" "ubuntu" {
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.*-arm64-server-*"]
-  }
-
-  owners = ["099720109477"] # Canonical
-}
-
-resource "aws_default_vpc" "default" {
-  tags = {
-    Name = "Default VPC"
-  }
-}
-
-resource "aws_security_group" "web" {
-  name   = "web"
-  vpc_id = aws_default_vpc.default.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "SSH and HTTP"
-  }
+variable "hcloud_key_name" {
+  type        = string
+  description = "keypair which will be used for all hcloud instances"
 }
 
 data "template_cloudinit_config" "master_cloudinit" {
@@ -91,23 +36,68 @@ data "template_cloudinit_config" "master_cloudinit" {
   }
 }
 
-resource "aws_instance" "master" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t4g.nano"
-  vpc_security_group_ids = [aws_security_group.web.id]
-  user_data              = data.template_cloudinit_config.master_cloudinit.rendered
-  key_name = var.aws_keypair_name
+resource "hcloud_network" "network" {
+  name     = "network"
+  ip_range = "172.31.0.0/16"
+}
 
-  tags = {
-    Name = "master"
+resource "hcloud_network_subnet" "network_subnet" {
+  type         = "cloud"
+  network_id   = hcloud_network.network.id
+  network_zone = "eu-central"
+  ip_range     = "172.31.0.0/20"
+}
+
+resource "hcloud_firewall" "firewall" {
+  name = "firewall"
+  rule {
+    direction  = "in"
+    protocol   = "icmp"
+    source_ips = ["0.0.0.0/0", "::/0"]
   }
-
-  root_block_device {
-    volume_type = "gp3"
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "22"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+  rule {
+    direction = "in"
+    protocol = "tcp"
+    port = "80"
+    source_ips = ["0.0.0.0/1", "::/0"]
+  }
+  rule {
+    direction = "in"
+    protocol = "tcp"
+    port = "443"
+    source_ips = ["0.0.0.0/1", "::/0"]
   }
 }
 
+resource "hcloud_server" "master" {
+  name         = "master"
+  image        = "ubuntu-20.04"
+  location     = "nbg1"
+  server_type  = "cx21"
+  ssh_keys     = [var.hcloud_key_name]
+  user_data    = data.template_cloudinit_config.master_cloudinit.rendered
+  firewall_ids = [hcloud_firewall.firewall.id]
+
+  network {
+    network_id = hcloud_network.network.id
+    ip         = "172.31.0.2"
+  }
+
+  # Note: the depends_on is important when directly attaching the server to a
+  # network. Otherwise Terraform will attempt to create server and sub-network
+  # in parallel. This may result in the server creation failing randomly.
+  depends_on = [
+    hcloud_network_subnet.network_subnet
+  ]
+}
+
 output "master_ip" {
-  description = "Public IP of the EC2 instance"
-  value       = aws_instance.master.public_ip
+  description = "Public IP of the master node"
+  value       = hcloud_server.master.ipv4_address
 }

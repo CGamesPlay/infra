@@ -35,48 +35,13 @@ consul_root_token=$(cat data/consul-acl.txt | grep 'SecretID' | cut -d: -f2 | xa
 vault_root_token=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cut -d: -f2)
 vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: -f2 | xargs)
 vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
-echo 'instance_id=$(ec2metadata --instance-id)'
+echo 'instance_id=$(hostname)'
 echo
-
-# }}}
-# Installing software {{{
-
-ARCH="arm64"
-NOMAD_VERSION="1.0.4"
-VAULT_VERSION="1.7.1"
-CONSUL_VERSION="1.9.5"
-
-
-cat <<EOF
-wget -nv https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${ARCH}.zip
-unzip vault_${VAULT_VERSION}_linux_${ARCH}.zip
-rm vault_${VAULT_VERSION}_linux_${ARCH}.zip
-mv vault /usr/local/bin/vault
-setcap cap_ipc_lock=+ep /usr/local/bin/vault
-useradd --system --home /etc/vault.d --shell /usr/sbin/nologin vault
-
-wget -nv https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_${ARCH}.zip
-unzip consul_${CONSUL_VERSION}_linux_${ARCH}.zip
-rm consul_${CONSUL_VERSION}_linux_${ARCH}.zip
-mv consul /usr/local/bin/consul
-useradd --system --home /etc/consul.d --shell /usr/sbin/nologin consul
-
-wget -nv https://releases.hashicorp.com/nomad/${NOMAD_VERSION}/nomad_${NOMAD_VERSION}_linux_${ARCH}.zip
-unzip nomad_${NOMAD_VERSION}_linux_${ARCH}.zip
-rm nomad_${NOMAD_VERSION}_linux_${ARCH}.zip
-mv nomad /usr/local/bin/nomad
-
-EOF
 
 # }}}
 # Consul {{{
 
-cat <<'SCRIPT_END'
-mkdir --parents /opt/consul /etc/consul.d
-chown --recursive consul:consul /opt/consul /etc/consul.d
-chmod 750 /etc/consul.d
-
-SCRIPT_END
+echo 'chmod 750 /opt/consul /etc/consul.d'
 
 echo 'echo node_name = \"server-$instance_id\" > /etc/consul.d/consul.hcl'
 emit_tee -a /etc/consul.d/consul.hcl <<EOF
@@ -117,7 +82,7 @@ ConditionFileNotEmpty=/etc/consul.d/consul.hcl
 Type=exec
 User=consul
 Group=consul
-ExecStart=/usr/local/bin/consul agent -config-dir=/etc/consul.d/
+ExecStart=/usr/bin/consul agent -config-dir=/etc/consul.d/
 ExecReload=/bin/kill --signal HUP $MAINPID
 KillMode=process
 KillSignal=SIGTERM
@@ -138,8 +103,8 @@ EOF
 # Vault {{{
 
 cat <<'SCRIPT_END'
-mkdir --parents /etc/vault.d
-mkdir --parents /opt/vault
+chmod 750 /etc/vault.d
+rm -rf /opt/vault
 
 SCRIPT_END
 
@@ -179,7 +144,7 @@ SecureBits=keep-caps
 AmbientCapabilities=CAP_IPC_LOCK
 CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
 NoNewPrivileges=yes
-ExecStart=/usr/local/bin/vault server -config=/etc/vault.d/vault.hcl
+ExecStart=/usr/bin/vault server -config=/etc/vault.d/vault.hcl
 ExecReload=/bin/kill --signal HUP $MAINPID
 KillMode=process
 KillSignal=SIGINT
@@ -194,10 +159,6 @@ WantedBy=multi-user.target
 EOF
 
 cat <<'SCRIPT_END'
-chown --recursive vault:vault /etc/vault.d
-chown --recursive vault:vault /opt/vault
-chmod 770 /opt/vault
-chmod 640 /etc/vault.d/vault.hcl
 export VAULT_ADDR=http://127.0.0.1:8200
 sed -i '/^VAULT_ADDR=/d' /etc/environment
 echo VAULT_ADDR=$VAULT_ADDR >> /etc/environment
@@ -208,9 +169,8 @@ SCRIPT_END
 # Nomad {{{
 
 cat <<'SCRIPT_END'
-mkdir --parents /opt/nomad
-mkdir --parents /etc/nomad.d
-chmod 700 /etc/nomad.d
+chmod 750 /opt/nomad /etc/nomad.d
+rmdir /opt/nomad/data
 
 SCRIPT_END
 
@@ -249,7 +209,7 @@ StartLimitIntervalSec=10
 
 [Service]
 ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/usr/local/bin/nomad agent -config /etc/nomad.d
+ExecStart=/usr/bin/nomad agent -config /etc/nomad.d
 KillMode=process
 KillSignal=SIGINT
 LimitNOFILE=infinity
