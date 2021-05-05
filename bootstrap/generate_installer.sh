@@ -36,6 +36,33 @@ vault_root_token=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cu
 vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: -f2 | xargs)
 vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 echo 'instance_id=$(hostname)'
+echo 'wireguard_ip=172.30.0.1'
+echo
+
+# }}}
+# Wireguard {{{
+
+emit_tee /etc/wireguard/wg0.conf <<EOF
+[Interface]
+Address = WIREGUARD_IP/20
+SaveConfig = true
+ListenPort = 51820
+PrivateKey = $(cat data/wg_master.key)
+PostUp = iptables -A FORWARD -i %i -j ACCEPT
+Postup = iptables -t nat -A POSTROUTING -o IFACE_NAME -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -o IFACE_NAME -j MASQUERADE
+EOF
+
+cat <<'SCRIPT_END'
+sed -i 's/WIREGUARD_IP/'$wireguard_ip'/g' /etc/wireguard/wg0.conf
+sed -i 's/IFACE_NAME/'$(ip -o -4 route show to default | awk '{print $5}')'/g' /etc/wireguard/wg0.conf
+sed -i 's/.*net\.ipv4\.ip_forward.*/net.ipv4.ip_forward=1/' /etc/sysctl.conf
+sysctl -p
+ufw allow 51820/udp
+systemctl enable --now wg-quick@wg0
+SCRIPT_END
+echo "wg set wg0 peer '$(cat data/wg_local.key | wg pubkey)' allowed-ips 172.30.15.1/32"
 echo
 
 # }}}
@@ -55,16 +82,20 @@ acl = {
 }
 EOF
 
+# Recommend using https://github.com/hashicorp/go-sockaddr to debug the
+# bind_addr template string.
 emit_tee /etc/consul.d/server.hcl <<'EOF'
 server = true
 bootstrap_expect = 1
 ui_config {
   enabled = true
 }
-bind_addr = "{{GetPrivateInterfaces | include \"network\" \"172.31.0.0/16\" | attr \"address\"}}"
+bind_addr = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
 EOF
 
 emit_tee /etc/consul.d/client.hcl <<'EOF'
+client_addr = "127.0.0.1 {{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
+
 ports = {
     dns = 53
 }
@@ -110,6 +141,7 @@ SCRIPT_END
 
 emit_tee /etc/vault.d/vault.hcl <<EOF
 ui = true
+api_addr = "http://VAULT_ADDR:8200/"
 
 listener "tcp" {
   address       = "0.0.0.0:8200"
@@ -122,6 +154,9 @@ storage "consul" {
   token = "$vault_consul_token"
 }
 EOF
+cat <<'SCRIPT_END'
+sed -i 's/VAULT_ADDR/'$wireguard_ip'/g' /etc/vault.d/vault.hcl
+SCRIPT_END
 
 emit_tee /etc/systemd/system/vault.service <<'EOF'
 [Unit]
@@ -178,6 +213,7 @@ echo 'echo name = \"$instance_id\" > /etc/nomad.d/nomad.hcl'
 emit_tee -a /etc/nomad.d/nomad.hcl <<EOF
 datacenter = "${DC}"
 data_dir = "/opt/nomad"
+bind_addr = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
 EOF
 
 emit_tee /etc/nomad.d/server.hcl <<EOF

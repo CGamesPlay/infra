@@ -20,6 +20,25 @@ mkdir data
 echo DC=${DC} > data/env
 
 # }}}
+# Wireguard setup {{{
+
+wg_master_key=$(wg genkey | tee data/wg_master.key)
+wg_master_pub=$(echo $wg_master_key | wg pubkey)
+wg_local_key=$(wg genkey | tee data/wg_local.key)
+
+cat >data/wg0.conf <<EOF
+[Interface]
+PrivateKey = $wg_local_key
+Address = 172.30.15.1/20
+
+[Peer]
+PublicKey = $wg_master_pub
+AllowedIPs = 172.30.0.0/20
+Endpoint = SERVER_IP_ADDRESS:51820
+PersistentKeepalive = 60
+EOF
+
+# }}}
 # Consul initialization {{{
 
 consul agent -datacenter=${DC} -node server-${DC}-bootstrap -config-file=consul.hcl & sleep 10
@@ -72,27 +91,6 @@ vault write pki/roles/consul-${DC} \
     generate_lease=true \
     max_ttl=720h
 MTLS_DISABLED
-
-# }}}
-# Wireguard setup {{{
-
-# Wireguard setup is a work in progress.
-: <<'WIREGUARD_DISABLED'
-wg_master_key=$(wg genkey | tee data/wg_master.key)
-wg_master_pub=$(echo $wg_master_key | wg pubkey)
-wg_local_key=$(wg genkey | tee data/wg_local.key)
-
-[Interface]
-PrivateKey = $wg_local_key
-Address = 172.31.240.1/32
-DNS = 172.31.0.2
-
-[Peer]
-PublicKey = $wg_master_pub
-AllowedIPs = 172.31.0.0/16
-Endpoint = do.cgamesplay.com:51820
-PersistentKeepalive = 60
-WIREGUARD_DISABLED
 
 # }}}
 # Shutdown and create snapshot {{{
