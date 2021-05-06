@@ -11,6 +11,7 @@ users:
     sudo: "ALL=(ALL:ALL) NOPASSWD:ALL"
     shell: /bin/bash
     groups: [adm,docker]
+timezone: 'UTC'
 runcmd:
   - "mkdir /home/ubuntu/.ssh"
   - "chmod 750 /home/ubuntu/.ssh"

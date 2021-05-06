@@ -18,7 +18,7 @@ fi
 . data/env
 
 function emit_tee() {
-    echo "tee $@ <<'EOF'"
+    echo "tee $@ <<'EOF' >/dev/null"
     cat
     echo "EOF"
     echo
@@ -35,8 +35,8 @@ consul_root_token=$(cat data/consul-acl.txt | grep 'SecretID' | cut -d: -f2 | xa
 vault_root_token=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cut -d: -f2)
 vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: -f2 | xargs)
 vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
+wireguard_ip=172.30.0.1
 echo 'instance_id=$(hostname)'
-echo 'wireguard_ip=172.30.0.1'
 echo
 
 # }}}
@@ -44,7 +44,7 @@ echo
 
 emit_tee /etc/wireguard/wg0.conf <<EOF
 [Interface]
-Address = WIREGUARD_IP/20
+Address = $wireguard_ip/20
 SaveConfig = true
 ListenPort = 51820
 PrivateKey = $(cat data/wg_master.key)
@@ -55,7 +55,6 @@ PostDown = iptables -t nat -D POSTROUTING -o IFACE_NAME -j MASQUERADE
 EOF
 
 cat <<'SCRIPT_END'
-sed -i 's/WIREGUARD_IP/'$wireguard_ip'/g' /etc/wireguard/wg0.conf
 sed -i 's/IFACE_NAME/'$(ip -o -4 route show to default | awk '{print $5}')'/g' /etc/wireguard/wg0.conf
 sed -i 's/.*net\.ipv4\.ip_forward.*/net.ipv4.ip_forward=1/' /etc/sysctl.conf
 sysctl -p
@@ -69,16 +68,31 @@ echo
 # Consul {{{
 
 echo 'chmod 750 /opt/consul /etc/consul.d'
+cat data/server.${DC}.consul.crt | emit_tee /opt/consul/agent.crt
+cat data/server.${DC}.consul.key | emit_tee /opt/consul/agent.key
+cat data/ca.crt | emit_tee /opt/consul/ca.crt
+echo
 
 echo 'echo node_name = \"server-$instance_id\" > /etc/consul.d/consul.hcl'
+echo 'echo encrypt = "'$(cat data/consul-gossip.key)'"'
 emit_tee -a /etc/consul.d/consul.hcl <<EOF
 datacenter = "${DC}"
 data_dir = "/opt/consul"
+verify_incoming_rpc = true
+verify_outgoing = true
+verify_server_hostname = true
+ca_file = "/opt/consul/ca.crt"
+cert_file = "/opt/consul/agent.crt"
+key_file = "/opt/consul/agent.key"
 
-acl = {
+acl {
   enabled = true
   default_policy = "deny"
   enable_token_persistence = true
+}
+
+ports {
+  https = 8501
 }
 EOF
 
@@ -131,32 +145,121 @@ Domains=~consul
 EOF
 
 # }}}
+# Nomad {{{
+
+echo 'chmod 750 /opt/nomad /etc/nomad.d'
+echo 'rm -df /opt/nomad/data'
+cat data/server.${DC}.nomad.crt | emit_tee /opt/nomad/agent.crt
+cat data/server.${DC}.nomad.key | emit_tee /opt/nomad/agent.key
+cat data/ca.crt | emit_tee /opt/nomad/ca.crt
+echo
+
+echo 'echo name = \"$instance_id\" > /etc/nomad.d/nomad.hcl'
+emit_tee -a /etc/nomad.d/nomad.hcl <<EOF
+datacenter = "${DC}"
+region = "${DC}"
+data_dir = "/opt/nomad"
+bind_addr = "0.0.0.0"
+
+advertise = {
+    http = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
+    rpc = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
+    serf = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
+}
+
+acl {
+  enabled = true
+}
+
+tls {
+  http = true
+  rpc = true
+
+  ca_file = "/opt/nomad/ca.crt"
+  cert_file = "/opt/nomad/agent.crt"
+  key_file = "/opt/nomad/agent.key"
+
+  verify_server_hostname = true
+}
+EOF
+
+emit_tee /etc/nomad.d/server.hcl <<EOF
+server {
+  enabled = true
+  bootstrap_expect = 1
+  encrypt = "$(cat data/nomad-gossip.key)"
+}
+
+consul {
+ token = "$consul_root_token"
+ ssl = true
+}
+EOF
+
+emit_tee /etc/nomad.d/client.hcl <<'EOF'
+client {
+  enabled = true
+  reserved = {
+    cpu = 500
+    memory = 400
+    disk = 1024
+  }
+}
+EOF
+
+emit_tee /etc/systemd/system/nomad.service <<'EOF'
+[Unit]
+Description=Nomad
+Documentation=https://www.nomadproject.io/docs
+Wants=network-online.target
+After=network-online.target
+StartLimitBurst=3
+StartLimitIntervalSec=10
+
+[Service]
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/bin/nomad agent -config /etc/nomad.d
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=infinity
+LimitNPROC=infinity
+Restart=on-failure
+RestartSec=2
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# }}}
 # Vault {{{
 
-cat <<'SCRIPT_END'
-chmod 750 /etc/vault.d
-rm -rf /opt/vault
-
-SCRIPT_END
+echo 'chmod 750 /opt/vault /etc/vault.d'
+echo 'rm -rf /opt/vault/*'
+cat data/vault.service.consul.crt | emit_tee /opt/vault/agent.crt
+cat data/vault.service.consul.key | emit_tee /opt/vault/agent.key
+cat data/ca.crt | emit_tee /opt/vault/ca.crt
+echo
 
 emit_tee /etc/vault.d/vault.hcl <<EOF
 ui = true
-api_addr = "http://VAULT_ADDR:8200/"
+api_addr = "https://$wireguard_ip:8200/"
 
 listener "tcp" {
   address       = "0.0.0.0:8200"
-  tls_disable   = true
+  tls_cert_file = "/opt/vault/agent.crt"
+  tls_key_file  = "/opt/vault/agent.key"
 }
 
 storage "consul" {
-  address = "127.0.0.1:8500"
+  address = "127.0.0.1:8501"
+  scheme = "https"
   path = "vault/"
   token = "$vault_consul_token"
+
+  tls_ca_file = "/opt/vault/ca.crt"
 }
 EOF
-cat <<'SCRIPT_END'
-sed -i 's/VAULT_ADDR/'$wireguard_ip'/g' /etc/vault.d/vault.hcl
-SCRIPT_END
 
 emit_tee /etc/systemd/system/vault.service <<'EOF'
 [Unit]
@@ -201,64 +304,6 @@ echo VAULT_ADDR=$VAULT_ADDR >> /etc/environment
 SCRIPT_END
 
 # }}}
-# Nomad {{{
-
-cat <<'SCRIPT_END'
-chmod 750 /opt/nomad /etc/nomad.d
-rmdir /opt/nomad/data
-
-SCRIPT_END
-
-echo 'echo name = \"$instance_id\" > /etc/nomad.d/nomad.hcl'
-emit_tee -a /etc/nomad.d/nomad.hcl <<EOF
-datacenter = "${DC}"
-data_dir = "/opt/nomad"
-bind_addr = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
-EOF
-
-emit_tee /etc/nomad.d/server.hcl <<EOF
-server {
-  enabled = true
-  bootstrap_expect = 1
-}
-EOF
-
-emit_tee /etc/nomad.d/client.hcl <<'EOF'
-client {
-  enabled = true
-  reserved = {
-    cpu = 500
-    memory = 400
-    disk = 1024
-  }
-}
-EOF
-
-emit_tee /etc/systemd/system/nomad.service <<'EOF'
-[Unit]
-Description=Nomad
-Documentation=https://www.nomadproject.io/docs
-Wants=network-online.target
-After=network-online.target
-StartLimitBurst=3
-StartLimitIntervalSec=10
-
-[Service]
-ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/usr/bin/nomad agent -config /etc/nomad.d
-KillMode=process
-KillSignal=SIGINT
-LimitNOFILE=infinity
-LimitNPROC=infinity
-Restart=on-failure
-RestartSec=2
-TasksMax=infinity
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# }}}
 # Bring up services {{{
 
 echo 'mkdir --parents /run/bootstrap'
@@ -269,11 +314,15 @@ echo
 cat <<SCRIPT_END
 tar -xf /run/bootstrap/consul.tar -C /opt/consul
 chown --recursive consul:consul /opt/consul
-systemctl enable --now consul; sleep 10
+
+systemctl enable --now consul
 systemctl restart systemd-resolved
-systemctl enable --now vault; sleep 5
-vault operator unseal "$vault_unseal_key"
 systemctl enable --now nomad
+systemctl enable --now vault
+export VAULT_ADDR=https://127.0.0.1:8200
+export VAULT_CACERT=/opt/vault/ca.crt
+while [[ ! \$(vault status) == *Sealed*true* ]]; do sleep 1; done
+vault operator unseal "$vault_unseal_key"
 rm -rf /run/bootstrap
 
 SCRIPT_END
