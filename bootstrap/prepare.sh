@@ -45,15 +45,15 @@ consul keygen > data/consul-gossip.key
 consul agent -datacenter=${DC} -node server-${DC}-bootstrap -config-file=consul.hcl &
 consul_pid=$!
 while [[ ! $(consul info 2>&1 >/dev/null) == *"Permission denied"* ]]; do sleep 1; done
-consul acl bootstrap | tee data/consul-acl.txt
+consul acl bootstrap | tee data/consul-acl.txt > /dev/null
 export CONSUL_HTTP_TOKEN=$(cat data/consul-acl.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 consul acl set-agent-token agent "$CONSUL_HTTP_TOKEN"
 consul acl policy create -name anonymous -rules @consul-policy-anonymous.hcl
-consul acl token create -description "Default (anonymous) token" -policy-name anonymous | tee data/anonymous-consul-token.txt
+consul acl token create -description "Default (anonymous) token" -policy-name anonymous | tee data/anonymous-consul-token.txt > /dev/null
 anonymous_consul_token=$(cat data/anonymous-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 consul acl set-agent-token default "$anonymous_consul_token"
 consul acl policy create -name vault -rules @consul-policy-vault.hcl
-consul acl token create -description "Vault token" -policy-name vault | tee data/vault-consul-token.txt
+consul acl token create -description "Vault token" -policy-name vault | tee data/vault-consul-token.txt > /dev/null
 
 # }}}
 # Nomad initialization {{{
@@ -68,7 +68,7 @@ vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d:
 CONSUL_HTTP_TOKEN=$vault_consul_token vault server -config=vault.hcl &
 vault_pid=$!
 while [[ ! $(vault status) == *Sealed*true* ]]; do sleep 1; done
-vault operator init -key-shares 1 -key-threshold 1 | tee data/vault-root-keys.txt
+vault operator init -key-shares 1 -key-threshold 1 | tee data/vault-root-keys.txt > /dev/null
 export VAULT_TOKEN=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cut -d: -f2)
 vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: -f2)
 vault operator unseal "$vault_unseal_key"
@@ -103,19 +103,25 @@ vault secrets tune -max-lease-ttl=8760h pki
 vault write -field certificate pki/root/generate/internal \
     common_name=global.vault \
     ttl=8760h > data/ca.crt
-# XXX - URLs here should be on vault.service.consul, and https?
 vault write pki/config/urls \
-    issuing_certificates="http://127.0.0.1:8200/v1/pki/ca" \
-    crl_distribution_points="http://127.0.0.1:8200/v1/pki/crl"
+    issuing_certificates="https://vault.consul.service:8200/v1/pki/ca" \
+    crl_distribution_points="https://vault.consul.service:8200/v1/pki/crl"
 vault write pki/roles/server-${DC} \
-    allowed_domains=server.${DC}.consul,server.${DC}.nomad,service.consul \
+    allowed_domains=server.${DC}.consul,server.${DC}.nomad,server.${DC}.vault,service.consul \
     allow_bare_domains=true \
     allow_subdomains=true \
     generate_lease=true \
     max_ttl=720h
 vault write -format=json pki/issue/server-${DC} \
+    common_name=server.${DC}.vault \
+    ttl=720h > data/vault-server-cert.json
+cat data/vault-server-cert.json | jq -r .data.certificate \
+    > data/vault-server.crt
+cat data/vault-server-cert.json | jq -r .data.private_key \
+    > data/vault-server.key
+vault write -format=json pki/issue/server-${DC} \
     common_name=server.${DC}.consul \
-    alt_names=consul.service.consul \
+    alt_names=localhost,consul.service.consul \
     ip_sans=127.0.0.1 \
     ttl=720h > data/consul-server-cert.json
 cat data/consul-server-cert.json | jq -r .data.certificate \
@@ -139,6 +145,22 @@ cat data/vault-server-cert.json | jq -r .data.certificate \
     > data/vault.service.consul.crt
 cat data/vault-server-cert.json | jq -r .data.private_key \
     > data/vault.service.consul.key
+
+vault policy write pki-issue vault-policy-pki-issue.hcl
+
+vault auth enable cert
+cert_accessor=$(vault auth list -format=json | jq -r '.["cert/"].accessor')
+vault write auth/cert/certs/server-${DC} \
+    name=server-${DC} \
+    certificate=@data/ca.crt \
+    allowed_common_names=server.${DC}.vault
+
+vault write identity/entity name=server-${DC} policies=pki-issue
+entity_id=$(vault read -field=id identity/entity/name/server-${DC})
+vault write identity/entity-alias \
+    canonical_id=$entity_id \
+    name=server.${DC}.vault \
+    mount_accessor=$cert_accessor
 
 # }}}
 # Shutdown and create snapshot {{{
