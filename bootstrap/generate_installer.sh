@@ -18,9 +18,10 @@ fi
 . data/env
 
 function emit_tee() {
-    echo "tee $@ <<'EOF' >/dev/null"
-    cat
-    echo "EOF"
+    echo "tee $@ <<'EMIT_TEE' >/dev/null"
+    # We use awk here instead of cat to verify that all files end in newlines.
+    awk 1
+    echo "EMIT_TEE"
     echo
 }
 
@@ -37,6 +38,7 @@ vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: 
 vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 wireguard_ip=172.30.0.1
 echo 'instance_id=$(hostname)'
+cat data/ca.crt | emit_tee /etc/ssl/certs/global.vault.crt
 echo
 
 # }}}
@@ -70,7 +72,6 @@ echo
 echo 'chmod 750 /opt/consul /etc/consul.d'
 cat data/server.${DC}.consul.crt | emit_tee /opt/consul/agent.crt
 cat data/server.${DC}.consul.key | emit_tee /opt/consul/agent.key
-cat data/ca.crt | emit_tee /opt/consul/ca.crt
 echo
 
 echo 'echo node_name = \"server-$instance_id\" > /etc/consul.d/consul.hcl'
@@ -81,7 +82,7 @@ data_dir = "/opt/consul"
 verify_incoming_rpc = true
 verify_outgoing = true
 verify_server_hostname = true
-ca_file = "/opt/consul/ca.crt"
+ca_file = "/etc/ssl/certs/global.vault.crt"
 cert_file = "/opt/consul/agent.crt"
 key_file = "/opt/consul/agent.key"
 
@@ -145,13 +146,218 @@ Domains=~consul
 EOF
 
 # }}}
+# Vault {{{
+
+echo 'chmod 750 /opt/vault /etc/vault.d'
+echo 'rm -rf /opt/vault/*'
+cat data/vault.service.consul.crt | emit_tee /opt/vault/agent.crt
+cat data/vault.service.consul.key | emit_tee /opt/vault/agent.key
+echo
+
+emit_tee /etc/vault.d/vault.hcl <<EOF
+ui = true
+api_addr = "https://$wireguard_ip:8200/"
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "/opt/vault/agent.crt"
+  tls_key_file  = "/opt/vault/agent.key"
+}
+
+storage "consul" {
+  address = "127.0.0.1:8501"
+  scheme = "https"
+  path = "vault/"
+  token = "$vault_consul_token"
+
+  tls_ca_file = "/etc/ssl/certs/global.vault.crt"
+}
+EOF
+
+emit_tee /etc/systemd/system/vault.service <<'EOF'
+[Unit]
+Description="HashiCorp Vault - A tool for managing secrets"
+Documentation=https://www.vaultproject.io/docs/
+Requires=network-online.target
+After=network-online.target consul.service
+Requires=consul.service
+ConditionFileNotEmpty=/etc/vault.d/vault.hcl
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+User=vault
+Group=vault
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+SecureBits=keep-caps
+AmbientCapabilities=CAP_IPC_LOCK
+CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
+NoNewPrivileges=yes
+ExecStart=/usr/bin/vault server -config=/etc/vault.d/vault.hcl
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat <<'SCRIPT_END'
+export VAULT_ADDR=https://127.0.0.1:8200
+sed -i '/^VAULT_ADDR=/d' /etc/environment
+echo VAULT_ADDR=$VAULT_ADDR >> /etc/environment
+
+SCRIPT_END
+
+# }}}
+# Vault Agent {{{
+
+echo 'mkdir --parents /etc/vault-agent.d'
+echo 'chmod 750 /etc/vault-agent.d'
+cat data/vault-agent.crt | emit_tee /etc/vault-agent.d/agent.crt
+cat data/vault-agent.key | emit_tee /etc/vault-agent.d/agent.key
+echo
+
+emit_tee /usr/local/bin/cert-validity-secs <<'END_FILE'
+#!/bin/bash
+# Returns the number of seconds until the passedd certificate will expire.
+set -ueo pipefail
+expires=$(date -d "$(openssl x509 -in "$1" -dates -noout | grep notAfter | cut -d= -f2)" +%s)
+now=$(date +%s)
+echo $(( expires - now))
+END_FILE
+echo 'chmod +x /usr/local/bin/cert-validity-secs'
+echo
+
+emit_tee /etc/vault-agent.d/rotate-certificates.hcl <<END_FILE
+vault {
+    address = "https://127.0.0.1:8200/"
+    ca_cert = "/etc/ssl/certs/global.vault.crt"
+    client_cert = "/etc/vault-agent.d/agent.crt"
+    client_key = "/etc/vault-agent.d/agent.key"
+}
+
+auto_auth {
+    method "cert" {}
+}
+
+template {
+    destination = "/etc/ssl/certs/global.vault.crt"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/cert/ca"}}
+{{ .Data.certificate }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/etc/vault-agent.d/agent.crt"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.vault" "ttl=1440h"}}
+{{ .Data.certificate }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/etc/vault-agent.d/agent.key"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.vault" "ttl=1440h"}}
+{{ .Data.private_key }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/vault/agent.crt"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.certificate }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/vault/agent.key"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.private_key }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/consul/agent.crt"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.certificate }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/consul/agent.key"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.private_key }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/nomad/agent.crt"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.certificate }}
+{{ end }}
+EOF
+}
+
+template {
+    destination = "/opt/nomad/agent.key"
+    error_on_missing_key = true
+    contents = <<EOF
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ .Data.private_key }}
+{{ end }}
+EOF
+}
+END_FILE
+
+emit_tee /etc/cron.monthly/rotate-certificates <<EOF
+#!/bin/bash
+# This script periodically runs vault-agent to rotate TLS certificates.
+set -ueo pipefail
+
+vault agent -config=/etc/vault-agent.d/rotate-certificates.hcl -exit-after-auth
+service vault reload || true
+service consul reload || true
+service nomad reload || true
+EOF
+echo 'chmod +x /etc/cron.monthly/rotate-certificates'
+echo
+
+# }}}
 # Nomad {{{
 
 echo 'chmod 750 /opt/nomad /etc/nomad.d'
 echo 'rm -df /opt/nomad/data'
-cat data/server.${DC}.nomad.crt | emit_tee /opt/nomad/agent.crt
-cat data/server.${DC}.nomad.key | emit_tee /opt/nomad/agent.key
-cat data/ca.crt | emit_tee /opt/nomad/ca.crt
 echo
 
 echo 'echo name = \"$instance_id\" > /etc/nomad.d/nomad.hcl'
@@ -175,7 +381,7 @@ tls {
   http = true
   rpc = true
 
-  ca_file = "/opt/nomad/ca.crt"
+  ca_file = "/etc/ssl/certs/global.vault.crt"
   cert_file = "/opt/nomad/agent.crt"
   key_file = "/opt/nomad/agent.key"
 
@@ -232,78 +438,6 @@ WantedBy=multi-user.target
 EOF
 
 # }}}
-# Vault {{{
-
-echo 'chmod 750 /opt/vault /etc/vault.d'
-echo 'rm -rf /opt/vault/*'
-cat data/vault.service.consul.crt | emit_tee /opt/vault/agent.crt
-cat data/vault.service.consul.key | emit_tee /opt/vault/agent.key
-cat data/ca.crt | emit_tee /opt/vault/ca.crt
-echo
-
-emit_tee /etc/vault.d/vault.hcl <<EOF
-ui = true
-api_addr = "https://$wireguard_ip:8200/"
-
-listener "tcp" {
-  address       = "0.0.0.0:8200"
-  tls_cert_file = "/opt/vault/agent.crt"
-  tls_key_file  = "/opt/vault/agent.key"
-}
-
-storage "consul" {
-  address = "127.0.0.1:8501"
-  scheme = "https"
-  path = "vault/"
-  token = "$vault_consul_token"
-
-  tls_ca_file = "/opt/vault/ca.crt"
-}
-EOF
-
-emit_tee /etc/systemd/system/vault.service <<'EOF'
-[Unit]
-Description="HashiCorp Vault - A tool for managing secrets"
-Documentation=https://www.vaultproject.io/docs/
-Requires=network-online.target
-After=network-online.target
-ConditionFileNotEmpty=/etc/vault.d/vault.hcl
-StartLimitIntervalSec=60
-StartLimitBurst=3
-
-[Service]
-User=vault
-Group=vault
-ProtectSystem=full
-ProtectHome=read-only
-PrivateTmp=yes
-PrivateDevices=yes
-SecureBits=keep-caps
-AmbientCapabilities=CAP_IPC_LOCK
-CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
-NoNewPrivileges=yes
-ExecStart=/usr/bin/vault server -config=/etc/vault.d/vault.hcl
-ExecReload=/bin/kill --signal HUP $MAINPID
-KillMode=process
-KillSignal=SIGINT
-Restart=on-failure
-RestartSec=5
-TimeoutStopSec=30
-LimitNOFILE=65536
-LimitMEMLOCK=infinity
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat <<'SCRIPT_END'
-export VAULT_ADDR=http://127.0.0.1:8200
-sed -i '/^VAULT_ADDR=/d' /etc/environment
-echo VAULT_ADDR=$VAULT_ADDR >> /etc/environment
-
-SCRIPT_END
-
-# }}}
 # Bring up services {{{
 
 echo 'mkdir --parents /run/bootstrap'
@@ -317,12 +451,13 @@ chown --recursive consul:consul /opt/consul
 
 systemctl enable --now consul
 systemctl restart systemd-resolved
-systemctl enable --now nomad
 systemctl enable --now vault
 export VAULT_ADDR=https://127.0.0.1:8200
-export VAULT_CACERT=/opt/vault/ca.crt
+export VAULT_CACERT=/etc/ssl/certs/global.vault.crt
 while [[ ! \$(vault status) == *Sealed*true* ]]; do sleep 1; done
 vault operator unseal "$vault_unseal_key"
+/etc/cron.monthly/rotate-certificates
+systemctl enable --now nomad
 rm -rf /run/bootstrap
 
 SCRIPT_END

@@ -56,11 +56,6 @@ consul acl policy create -name vault -rules @consul-policy-vault.hcl
 consul acl token create -description "Vault token" -policy-name vault | tee data/vault-consul-token.txt > /dev/null
 
 # }}}
-# Nomad initialization {{{
-
-nomad operator keygen > data/nomad-gossip.key
-
-# }}}
 # Vault initialization {{{
 
 export VAULT_ADDR="http://127.0.0.1:8200"
@@ -74,20 +69,25 @@ vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: 
 vault operator unseal "$vault_unseal_key"
 
 # }}}
-# Vault PKI setup {{{
+# Vault Agent setup {{{
 
-# mTLS is required for a few reasons if there will be untrusted workloads on
-# the cluster.
+# Vault Agent is a daemon running on the machine that monitors Vault and Consul
+# and can automatically update config files in response to changes and
+# certificate expirations. It is built on consul-template. We will use it to
+# generate all mTLS certificates in the cluster.
+#
+# mTLS is required if there will be any untrusted workloads on the cluster. For
+# exaample:
 #
 # - Consul - if mTLS is disabled, a malicious workload could masquerade as a
-#   Consul server and modify the catalog as desired, allowing it to further
-#   masquerade as any other service.
+#   Consul server (bypassing the ACL) and modify the catalog as desired,
+#   allowing it to further masquerade as any other service.
 # - Nomad - if mTLS is disabled, a malicious workload could masquerade as a
 #   Nomad server and schedule arbitrary workloads on the cluster.
 #
 # Even if Consul and Nomad are secured with mTLS, malicious workloads with root
 # privileges on a node have the capacity to interfere with other workloads on
-# that node. Worse, a malicious workloads with root privileges running on a
+# that node. Worse, a malicious workload with root privileges running on a
 # server node has the capacity to hijack Nomad, Consul, or even Vault,
 # effectively giving it full control over the entire cluster. To properly
 # handle this circumstance, no privileged workloads can be allowed to run on
@@ -111,40 +111,7 @@ vault write pki/roles/server-${DC} \
     allow_bare_domains=true \
     allow_subdomains=true \
     generate_lease=true \
-    max_ttl=720h
-vault write -format=json pki/issue/server-${DC} \
-    common_name=server.${DC}.vault \
-    ttl=720h > data/vault-server-cert.json
-cat data/vault-server-cert.json | jq -r .data.certificate \
-    > data/vault-server.crt
-cat data/vault-server-cert.json | jq -r .data.private_key \
-    > data/vault-server.key
-vault write -format=json pki/issue/server-${DC} \
-    common_name=server.${DC}.consul \
-    alt_names=localhost,consul.service.consul \
-    ip_sans=127.0.0.1 \
-    ttl=720h > data/consul-server-cert.json
-cat data/consul-server-cert.json | jq -r .data.certificate \
-    > data/server.${DC}.consul.crt
-cat data/consul-server-cert.json | jq -r .data.private_key \
-    > data/server.${DC}.consul.key
-vault write -format=json pki/issue/server-${DC} \
-    common_name=server.${DC}.nomad \
-    alt_names=nomad.service.consul \
-    ip_sans=127.0.0.1 \
-    ttl=720h > data/nomad-server-cert.json
-cat data/nomad-server-cert.json | jq -r .data.certificate \
-    > data/server.${DC}.nomad.crt
-cat data/nomad-server-cert.json | jq -r .data.private_key \
-    > data/server.${DC}.nomad.key
-vault write -format=json pki/issue/server-${DC} \
-    common_name=vault.service.consul \
-    ip_sans=127.0.0.1 \
-    ttl=720h > data/vault-server-cert.json
-cat data/vault-server-cert.json | jq -r .data.certificate \
-    > data/vault.service.consul.crt
-cat data/vault-server-cert.json | jq -r .data.private_key \
-    > data/vault.service.consul.key
+    max_ttl=1440h
 
 vault policy write pki-issue vault-policy-pki-issue.hcl
 
@@ -161,6 +128,42 @@ vault write identity/entity-alias \
     canonical_id=$entity_id \
     name=server.${DC}.vault \
     mount_accessor=$cert_accessor
+
+# Now we create the certificate which will allow the vault agent to issue other
+# certificates. Note that it has a 24h TTL, and the installation script is
+# reponsible for rotating it immediately upon installation.
+vault write -format=json pki/issue/server-${DC} \
+    common_name=server.${DC}.vault \
+    ttl=24h > data/vault-agent-cert.json
+cat data/vault-agent-cert.json | jq -r .data.certificate \
+    > data/vault-agent.crt
+cat data/vault-agent-cert.json | jq -r .data.private_key \
+    > data/vault-agent.key
+# Vault agent will not be able to access Vault and Consul in the initial run
+# unless they are running, and they can't run unless they have SSL
+# certificates, so we need to bootstrap them here. Again, note the short TTL.
+vault write -format=json pki/issue/server-${DC} \
+    common_name=server.${DC}.consul \
+    alt_names=localhost,consul.service.consul \
+    ip_sans=127.0.0.1 \
+    ttl=24h > data/consul-server-cert.json
+cat data/consul-server-cert.json | jq -r .data.certificate \
+    > data/server.${DC}.consul.crt
+cat data/consul-server-cert.json | jq -r .data.private_key \
+    > data/server.${DC}.consul.key
+vault write -format=json pki/issue/server-${DC} \
+    common_name=vault.service.consul \
+    ip_sans=127.0.0.1 \
+    ttl=24h > data/vault-server-cert.json
+cat data/vault-server-cert.json | jq -r .data.certificate \
+    > data/vault.service.consul.crt
+cat data/vault-server-cert.json | jq -r .data.private_key \
+    > data/vault.service.consul.key
+
+# }}}
+# Nomad initialization {{{
+
+nomad operator keygen > data/nomad-gossip.key
 
 # }}}
 # Shutdown and create snapshot {{{
