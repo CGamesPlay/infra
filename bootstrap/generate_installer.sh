@@ -38,7 +38,8 @@ vault_unseal_key=$(cat data/vault-root-keys.txt | grep "Unseal Key 1" | cut -d: 
 vault_consul_token=$(cat data/vault-consul-token.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 wireguard_ip=172.30.0.1
 echo 'instance_id=$(hostname)'
-cat data/ca.crt | emit_tee /etc/ssl/certs/global.vault.crt
+cat data/ca.crt | emit_tee /usr/local/share/ca-certificates/global.vault.crt
+echo 'update-ca-certificates'
 echo
 
 # }}}
@@ -82,7 +83,7 @@ data_dir = "/opt/consul"
 verify_incoming_rpc = true
 verify_outgoing = true
 verify_server_hostname = true
-ca_file = "/etc/ssl/certs/global.vault.crt"
+ca_file = "/usr/local/share/ca-certificates/global.vault.crt"
 cert_file = "/opt/consul/agent.crt"
 key_file = "/opt/consul/agent.key"
 
@@ -170,7 +171,7 @@ storage "consul" {
   path = "vault/"
   token = "$vault_consul_token"
 
-  tls_ca_file = "/etc/ssl/certs/global.vault.crt"
+  tls_ca_file = "/usr/local/share/ca-certificates/global.vault.crt"
 }
 EOF
 
@@ -212,6 +213,7 @@ EOF
 
 cat <<'SCRIPT_END'
 export VAULT_ADDR=https://127.0.0.1:8200
+export VAULT_CACERT=/usr/local/share/ca-certificates/global.vault.crt
 sed -i '/^VAULT_ADDR=/d' /etc/environment
 echo VAULT_ADDR=$VAULT_ADDR >> /etc/environment
 
@@ -240,7 +242,7 @@ echo
 emit_tee /etc/vault-agent.d/rotate-certificates.hcl <<END_FILE
 vault {
     address = "https://127.0.0.1:8200/"
-    ca_cert = "/etc/ssl/certs/global.vault.crt"
+    ca_cert = "/usr/local/share/ca-certificates/global.vault.crt"
     client_cert = "/etc/vault-agent.d/agent.crt"
     client_key = "/etc/vault-agent.d/agent.key"
 }
@@ -250,7 +252,7 @@ auto_auth {
 }
 
 template {
-    destination = "/etc/ssl/certs/global.vault.crt"
+    destination = "/usr/local/share/ca-certificates/global.vault.crt"
     error_on_missing_key = true
     contents = <<EOF
 {{ with secret "pki/cert/ca"}}
@@ -283,7 +285,7 @@ template {
     destination = "/opt/vault/agent.crt"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.certificate }}
 {{ end }}
 EOF
@@ -293,7 +295,7 @@ template {
     destination = "/opt/vault/agent.key"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.private_key }}
 {{ end }}
 EOF
@@ -303,7 +305,7 @@ template {
     destination = "/opt/consul/agent.crt"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.certificate }}
 {{ end }}
 EOF
@@ -313,7 +315,7 @@ template {
     destination = "/opt/consul/agent.key"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.private_key }}
 {{ end }}
 EOF
@@ -323,7 +325,7 @@ template {
     destination = "/opt/nomad/agent.crt"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.certificate }}
 {{ end }}
 EOF
@@ -333,12 +335,16 @@ template {
     destination = "/opt/nomad/agent.key"
     error_on_missing_key = true
     contents = <<EOF
-{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+{{ with secret "pki/issue/server-${DC}" "common_name=server.${DC}.nomad" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1,WIREGUARD_IP" "ttl=1440h"}}
 {{ .Data.private_key }}
 {{ end }}
 EOF
 }
 END_FILE
+cat <<'EOF'
+sed -i 's/WIREGUARD_IP/'$wireguard_ip'/g' /etc/vault-agent.d/rotate-certificates.hcl
+
+EOF
 
 emit_tee /etc/cron.monthly/rotate-certificates <<EOF
 #!/bin/bash
@@ -381,7 +387,7 @@ tls {
   http = true
   rpc = true
 
-  ca_file = "/etc/ssl/certs/global.vault.crt"
+  ca_file = "/usr/local/share/ca-certificates/global.vault.crt"
   cert_file = "/opt/nomad/agent.crt"
   key_file = "/opt/nomad/agent.key"
 
@@ -397,8 +403,9 @@ server {
 }
 
 consul {
- token = "$consul_root_token"
- ssl = true
+  address = "127.0.0.1:8501"
+  token = "$consul_root_token"
+  ssl = true
 }
 EOF
 
@@ -452,8 +459,6 @@ chown --recursive consul:consul /opt/consul
 systemctl enable --now consul
 systemctl restart systemd-resolved
 systemctl enable --now vault
-export VAULT_ADDR=https://127.0.0.1:8200
-export VAULT_CACERT=/etc/ssl/certs/global.vault.crt
 while [[ ! \$(vault status) == *Sealed*true* ]]; do sleep 1; done
 vault operator unseal "$vault_unseal_key"
 /etc/cron.monthly/rotate-certificates
