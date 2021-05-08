@@ -67,6 +67,10 @@ If everything works, you should be able to SSH to nodes using their names:
 ssh server-master.node.consul
 ```
 
+## Using Nomad
+
+Now that the server is set up, you'll want to start running some jobs on your new cluster. Your first two jobs should be [traefik](./nomad/traefik) and [whoami](./nomad/whoami), which will allow you to verify that everything is working properly. After that, you can do whatever you like. My [nomad directory](./nomad) has the jobspecs that I am using, which you can use as a baseline for your own.
+
 ## Networking reference
 
 | CIDR           | Purpose                                                      |

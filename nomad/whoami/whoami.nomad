@@ -1,9 +1,8 @@
 job "whoami" {
   datacenters = ["nbg1"]
+  type = "service"
 
   group "main" {
-    count = 1
-
     network {
       port "http" {
         to = 80
