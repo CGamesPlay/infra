@@ -407,6 +407,11 @@ consul {
   token = "$consul_root_token"
   ssl = true
 }
+
+vault {
+  enabled = true
+  token = "$vault_root_token"
+}
 EOF
 
 emit_tee /etc/nomad.d/client.hcl <<'EOF'
@@ -417,6 +422,9 @@ client {
     memory = 400
     disk = 1024
   }
+  cni_path = "/usr/local/cni/bin"
+  cni_config_dir = "/etc/cni.d"
+  network_interface = "wg0"
 }
 EOF
 
@@ -432,7 +440,8 @@ StartLimitIntervalSec=10
 [Service]
 ExecReload=/bin/kill -HUP $MAINPID
 ExecStart=/usr/bin/nomad agent -config /etc/nomad.d
-KillMode=process
+TimeoutStopSec=30
+KillMode=mixed
 KillSignal=SIGINT
 LimitNOFILE=infinity
 LimitNPROC=infinity
@@ -443,6 +452,14 @@ TasksMax=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
+
+cat <<'SCRIPT_END'
+wget -O cni-plugins.tgz "https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-$( [ $(uname -m) = aarch64 ] && echo arm64 || echo amd64)"-v0.9.1.tgz
+mkdir --parents /usr/local/cni/bin
+tar -C /usr/local/cni/bin -xzf cni-plugins.tgz
+rm cni-plugins.tgz
+
+SCRIPT_END
 
 # }}}
 # Bring up services {{{

@@ -71,6 +71,20 @@ ssh server-master.node.consul
 
 Now that the server is set up, you'll want to start running some jobs on your new cluster. Your first two jobs should be [traefik](./nomad/traefik) and [whoami](./nomad/whoami), which will allow you to verify that everything is working properly. After that, you can do whatever you like. My [nomad directory](./nomad) has the jobspecs that I am using, which you can use as a baseline for your own.
 
+### Note about storage
+
+Presently, all of my stateful workloads reside on the master node. As a result, I haven't invested in any container storage interfaces, and I use plain Docker bind mounts to attach stateful volumes. If you want to do this, you'll need to enable the feature in `/etc/nomad.d/client.hcl`:
+
+```hcl
+plugin "docker" {
+  config {
+    volumes {
+      enabled = true
+    }
+  }
+}
+```
+
 ## Networking reference
 
 | CIDR           | Purpose                                                      |
@@ -83,4 +97,4 @@ Now that the server is set up, you'll want to start running some jobs on your ne
 
 Set up security groups such that the machines in the cluster can only communicate with each other over Wireguard (51820 UDP). Incoming connections will only go to the traefik machine.
 
-For reference, here are the ports used by the main programs: Nomad (4646-4647 plus 20000-32000 for services), Consul (8300-8302, 8500), Vault (8200-8201). 
+For reference, here are the ports used by the main programs: Nomad (4646-4647 plus 20000-32000 for services), Consul (8300-8302, 8500), Vault (8200-8201).
