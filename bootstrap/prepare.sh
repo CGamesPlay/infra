@@ -22,6 +22,7 @@ echo DC=${DC} > data/env
 # }}}
 # Wireguard setup {{{
 
+server_ip=$(curl -4 ifconfig.co)
 wg_master_key=$(wg genkey | tee data/wg_master.key)
 wg_master_pub=$(echo $wg_master_key | wg pubkey)
 wg_local_key=$(wg genkey | tee data/wg_local.key)
@@ -34,8 +35,7 @@ Address = 172.30.15.1/20
 [Peer]
 PublicKey = $wg_master_pub
 AllowedIPs = 172.30.0.0/20
-Endpoint = SERVER_IP_ADDRESS:51820
-PersistentKeepalive = 60
+Endpoint = $server_ip:51820
 EOF
 
 # }}}
