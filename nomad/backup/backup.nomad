@@ -48,6 +48,8 @@ job "backup" {
         data = <<-EOF
           # Ignore allocation ephemeral storage
           /opt/nomad/alloc
+          # Ignore docker registry (can be rebuilt if necessary)
+          /opt/registry
           EOF
       }
 

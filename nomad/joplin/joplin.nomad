@@ -1,6 +1,7 @@
 job "joplin" {
   datacenters = ["nbg1"]
   type = "service"
+  priority = 60
 
   group "main" {
     network {
