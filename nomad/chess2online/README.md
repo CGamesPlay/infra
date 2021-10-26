@@ -1,6 +1,10 @@
 # Chess 2 Online API Server
 
-This is a closed-source docker image which powers the API server for <https://www.chess2online.com/>. It will be of little to no use for anyone other than me.
+This is a closed-source docker image which powers the API server for <https://www.chess2online.com/>. It cannot be run by anyone other than me, however it does show a few useful techniques:
+
+- Running a container hosted on the hosted private Docker registry.
+- Configuring custom Traefik rules on a job.
+- Storing ad-hoc secret data in Vault.
 
 ## Installation
 

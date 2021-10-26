@@ -1,11 +1,18 @@
-job "whoami" {
+[[/* This is jobspec should be rendered with levant. */]]
+job "dashboard" {
   datacenters = ["nbg1"]
   type = "service"
 
+  update {
+    canary = 1
+    auto_promote = true
+  }
+
   group "main" {
     network {
+      mode = "bridge"
       port "http" {
-        to = 80
+        to = 8080
       }
     }
 
@@ -16,6 +23,7 @@ job "whoami" {
       tags = [
         "traefik.enable=true",
         "traefik.http.routers.${NOMAD_JOB_NAME}.tls.certresolver=le",
+        "traefik.http.routers.${NOMAD_JOB_NAME}.rule=Host(`[[ consulKey "traefik/config/domain" ]]`)",
       ]
 
       check {
@@ -30,8 +38,19 @@ job "whoami" {
       driver = "docker"
 
       config {
-        image = "containous/whoami"
+        image = "halverneus/static-file-server"
         ports = ["http"]
+
+        volumes = [
+          "local/site:/web"
+        ]
+      }
+
+      template {
+        destination = "local/site/index.html"
+        data = <<-EOF
+        [[ fileContents "index.html" ]]
+        EOF
       }
 
       resources {
@@ -40,5 +59,3 @@ job "whoami" {
     }
   }
 }
-
-

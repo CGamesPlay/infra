@@ -1,7 +1,13 @@
+[[/* This is jobspec should be rendered with levant. */]]
 job "chess2online" {
   datacenters = ["nbg1"]
   type = "service"
   priority = 60
+
+  update {
+    canary = 1
+    auto_promote = true
+  }
 
   group "main" {
     network {
@@ -31,7 +37,7 @@ job "chess2online" {
     task "server" {
       driver = "docker"
       config {
-        image = "registry.cluster.cgamesplay.com/chess2:latest"
+        image = "registry.[[ consulKey "traefik/config/domain" ]]/chess2:latest"
         ports = ["http"]
 
         volumes = [

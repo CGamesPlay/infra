@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Own Cluster</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+</head>
+<body>
+<section class="section">
+  <div class="container" style="max-width: 15rem">
+    <h1 class="title has-text-centered">
+      My Own Cluster
+    </h1>
+    <div>
+      <a
+        class="button is-light is-large"
+        style="display: block; height: auto; max-width: 15rem; margin: 1rem auto;"
+        href="https://nomad.service.consul:4646/">
+        <img
+          src="https://www.datocms-assets.com/2885/1620155098-brandhcnomadprimaryattributedcolor.svg"
+          style="display: block; height: 3rem"
+          alt="Nomad" />
+      </a>
+      <a
+        class="button is-light is-large"
+        style="display: block; height: auto; max-width: 15rem; margin: 1rem auto;"
+        href="https://vault.service.consul:8200/">
+        <img
+          src="https://www.datocms-assets.com/2885/1620159869-brandvaultprimaryattributedcolor.svg"
+          style="display: block; height: 3rem"
+          alt="Vault" />
+      </a>
+      <a
+        class="button is-light is-large"
+        style="display: block; height: auto; max-width: 15rem; margin: 1rem auto;"
+        href="http://traefik.service.consul:8080/">
+        <img
+          src="https://traefik.io/static/traefik-proxy-logo--white-82153be41e0ce620a921b4bce974f6d8.svg"
+          style="display: block; height: 3rem"
+          alt="Traefik" />
+      </a>
+      <a
+        class="button is-light is-large"
+        style="display: block; height: auto; max-width: 15rem; margin: 1rem auto;"
+        href="https://consul.service.consul:8501/">
+        <img
+          src="https://www.datocms-assets.com/2885/1620155090-brandhcconsulprimaryattributedcolor.svg"
+          style="display: block; height: 3rem"
+          alt="Consul" />
+      </a>
+    </div>
+  </div>
+</section>
+<footer class="footer">
+  <div class="content has-text-centered">
+    <p>In order to access these dashboards, you need to be connected to the WireGuard VPN, have configured the system DNS, and added <a href="data:application/x-x509-ca-cert;charset=utf-8;base64,{{ with secret "pki/cert/ca" }}{{ base64URLEncode .Data.certificate }}{{ end }}" download="ca.crt">the Vault certificate authority</a> to your browser's trusted store.</p>
+  </div>
+</footer>
+</body>
+</html>

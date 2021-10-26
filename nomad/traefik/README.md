@@ -7,8 +7,8 @@ The Traefik load balancer is the main ingress point for all public-facing servic
 To set up Traefik to handle SSL for your cluster, first assign a DNS name to the nodes that will run Traefik. Ensure that all subdomains also point to the same IPs. Store in Consul the domain name as well as the contact email address for your SSL certificates:
 
 ```bash
-consul kv put traefik/config/domain cluster.cgamesplay.com
-consul kv put traefik/config/email contact@cgamesplay.com
+consul kv put traefik/config/domain example.com
+consul kv put traefik/config/email contact@example.com
 ```
 
 No further configuration is necessary for Traefik.

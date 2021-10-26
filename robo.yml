@@ -1,0 +1,19 @@
+deploy:
+  summary: deploy one or more jobs
+  command: exec scripts/levant.sh deploy "$@"
+  usage: "[job...]"
+  examples:
+    - description: Deploy all jobs, except those in directories ending in ".disabled".
+      command: robo deploy
+    - description: Deploy only the "traefik" and "backup" jobs.
+      command: robo deploy traefik backup
+
+setup-dns:
+  summary: add Consul DNS to system settings
+  command: |
+    sudo scutil <<EOF
+    d.init
+    d.add ServerAddresses * 172.30.0.1
+    d.add SupplementalMatchDomains * consul
+    set State:/Network/Service/Consul/DNS
+    EOF

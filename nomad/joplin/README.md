@@ -1,6 +1,6 @@
 # Joplin Server
 
-Joplin Server is a [pre-release sync server](https://discourse.joplinapp.org/t/joplin-server-pre-release-is-now-available/13605) for Joplin. Joplin natively support WebDAV sync engines like Seafile, and even S3, but according to the developer this native server is able to sync much faster, particularly on mobile clients.
+Joplin Server is the native sync solution for [Joplin](https://joplinapp.org). Joplin natively support WebDAV sync engines like Seafile, and even S3, but according to the developer this native server is able to sync much faster, particularly on mobile clients.
 
 ## Installation
 

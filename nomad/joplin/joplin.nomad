@@ -1,3 +1,4 @@
+[[/* This is jobspec should be rendered with levant. */]]
 job "joplin" {
   datacenters = ["nbg1"]
   type = "service"
@@ -25,13 +26,16 @@ job "joplin" {
         path     = "/api/ping"
         interval = "30s"
         timeout  = "2s"
+        header {
+          Host = ["joplin.[[ consulKey "traefik/config/domain" ]]"]
+        }
       }
     }
 
     task "server" {
       driver = "docker"
       config {
-        image = "joplin/server"
+        image = "joplin/server:2.5.1"
         ports = ["http"]
       }
 

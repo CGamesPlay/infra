@@ -31,6 +31,9 @@ function emit_file() {
     echo 'EOF'
 }
 
+# XXX - need to add a check to verify that the services aren't already running.
+# XXX - also verify the versions of software matches up
+
 export VAULT_TOKEN=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cut -d: -f2 | xargs)
 consul_root_token=$(cat data/consul-acl.txt | grep 'SecretID' | cut -d: -f2 | xargs)
 vault_root_token=$(cat data/vault-root-keys.txt | grep "Initial Root Token" | cut -d: -f2)
@@ -107,6 +110,7 @@ ui_config {
   enabled = true
 }
 bind_addr = "{{GetPrivateInterfaces | include \"name\" \"wg0\" | attr \"address\"}}"
+recursors = [ "1.1.1.1" ]
 EOF
 
 emit_tee /etc/consul.d/client.hcl <<'EOF'
@@ -483,6 +487,8 @@ systemctl enable --now nomad
 rm -rf /run/bootstrap
 
 SCRIPT_END
+
+# Verify with openssl s_client -connect ${SITE_URL}:${SITE_SSL_PORT} -servername ${SITE_URL} 2> /dev/null |  openssl x509 -noout  -dates
 
 # }}}
 # vim:foldmethod=marker
