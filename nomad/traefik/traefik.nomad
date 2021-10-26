@@ -41,7 +41,7 @@ job "traefik" {
       driver = "docker"
 
       config {
-        image        = "traefik:v2.2"
+        image        = "traefik:v2.5"
         network_mode = "host"
 
         volumes = [
@@ -69,6 +69,7 @@ job "traefik" {
           [certificatesResolvers.le.acme]
           email = "{{ key "traefik/config/email" }}"
           storage = "/etc/traefik/acme/acme.json"
+          preferredChain = "ISRG Root X1"
           [certificatesResolvers.le.acme.tlsChallenge]
 
           [api]
