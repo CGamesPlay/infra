@@ -1,6 +1,6 @@
 # Personal Cloud IaC
 
-This is the repo I use for my personal cloud server, hosted as a VPS. At the time of writing this document, the system is a single node, therefore the security model is somewhat simpler than a production system and no container storage interfaces need to be configured.
+This is the repo I use for [my personal cloud server](https://cgamesplay.com/post/2021/10/27/creating-my-personal-cloud-with-hashicorp/), hosted as a VPS. At the time of writing this document, the system is a single node, therefore the security model is somewhat simpler than a production system and no container storage interfaces need to be configured.
 
 **Features:**
 
