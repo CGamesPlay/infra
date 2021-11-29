@@ -19,7 +19,7 @@ server_pubkey=$(wg show wg0 public-key)
 server_ip=$(curl -sS4 ifconfig.co)
 num_peers=$(wg show wg0 peers | wc -l)
 client_privkey=$(wg genkey)
-client_pubkey=$(echo $privkey | wg pubkey)
+client_pubkey=$(echo $client_privkey | wg pubkey)
 client_ip=172.30.15.$((num_peers + 1))
 cat >/run/client.conf <<EOF
 [Interface]
