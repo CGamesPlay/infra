@@ -17,3 +17,8 @@ setup-dns:
     d.add SupplementalMatchDomains * consul
     set State:/Network/Service/Consul/DNS
     EOF
+
+docker-tags:
+  summary: list docker tags of named image
+  command: |
+    curl -sSL https://registry.hub.docker.com/v1/repositories/$1/tags | jq -r 'map(.name)|join("\n")' | sort

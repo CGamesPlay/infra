@@ -35,7 +35,7 @@ job "joplin" {
     task "server" {
       driver = "docker"
       config {
-        image = "joplin/server:2.5.1"
+        image = "joplin/server:2.7.3-beta"
         ports = ["http"]
       }
 

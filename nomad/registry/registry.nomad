@@ -48,6 +48,8 @@ job "registry" {
         storage:
           filesystem:
             rootdirectory: /var/lib/registry
+          delete:
+            enabled: true
         http:
           addr: 0.0.0.0:5000
         auth:
