@@ -5,6 +5,8 @@
 #
 #  ./generate_installer.sh | ssh my.master.node -- sudo bash
 set -ueo pipefail
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 echo '#!/bin/bash'
 echo 'set -uexo pipefail'
 echo
