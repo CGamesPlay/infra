@@ -20,6 +20,10 @@ runcmd:
   - "sed -Ei 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config"
   - "sed -i 's/^#?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config"
   - "service sshd reload"
+  # XXX - this drive mounting portion is untested
+  - "mkdir -p /opt"
+  - 'echo "$(blkid --output export /dev/sdb | grep UUID=) /opt ext4 discard,defaults,errors=remount-ro 0 2" >> /etc/fstab'
+  - "mount -a"
 apt:
   sources:
     hashicorp:

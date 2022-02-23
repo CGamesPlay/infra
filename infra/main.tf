@@ -8,7 +8,7 @@ terraform {
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "1.26.0"
+      version = "1.32.2"
     }
   }
 
@@ -62,21 +62,21 @@ resource "hcloud_firewall" "firewall" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
   rule {
-    direction = "in"
-    protocol = "tcp"
-    port = "80"
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "80"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
   rule {
-    direction = "in"
-    protocol = "tcp"
-    port = "443"
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "443"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
   rule {
-    direction = "in"
-    protocol = "udp"
-    port = "51820"
+    direction  = "in"
+    protocol   = "udp"
+    port       = "51820"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 }
@@ -101,6 +101,15 @@ resource "hcloud_server" "master" {
   depends_on = [
     hcloud_network_subnet.network_subnet
   ]
+}
+
+resource "hcloud_volume" "master-drive" {
+  name              = "master-drive"
+  size              = 20
+  server_id         = hcloud_server.master.id
+  automount         = false
+  format            = "ext4"
+  delete_protection = true
 }
 
 output "master_ip" {

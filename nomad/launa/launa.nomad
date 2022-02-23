@@ -9,14 +9,10 @@ job "launa" {
     auto_promote = true
   }
 
-  [[/*
-  // This works, but isn't really desirable unless actually working directly
-  // with the service.
   meta {
-    // This is used so that the job always redeploys.
-    started_at = "[[ timeNow ]]"
+    // Increment this whenever the docker image is force pushed.
+    forced_deploy = "1"
   }
-  */]]
 
   group "main" {
     network {
@@ -46,6 +42,7 @@ job "launa" {
       driver = "docker"
       config {
         image = "registry.[[ consulKey "traefik/config/domain" ]]/launa"
+        force_pull = true
         ports = ["http"]
         init = true
 
