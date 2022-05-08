@@ -99,10 +99,11 @@ vault operator unseal "$vault_unseal_key"
 # https://learn.hashicorp.com/tutorials/consul/vault-pki-consul-secure-tls
 
 vault secrets enable pki
-vault secrets tune -max-lease-ttl=8760h pki
+vault secrets tune -max-lease-ttl=87600h pki
 vault write -field certificate pki/root/generate/internal \
     common_name=global.vault \
-    ttl=8760h > data/ca.crt
+    ttl=87600h > data/ca.crt
+vault secrets tune -max-lease-ttl=8760h pki
 vault write pki/config/urls \
     issuing_certificates="https://vault.consul.service:8200/v1/pki/ca" \
     crl_distribution_points="https://vault.consul.service:8200/v1/pki/crl"

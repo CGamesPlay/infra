@@ -258,16 +258,6 @@ auto_auth {
 }
 
 template {
-    destination = "/usr/local/share/ca-certificates/global.vault.crt"
-    error_on_missing_key = true
-    contents = <<EOF
-{{ with secret "pki/cert/ca"}}
-{{ .Data.certificate }}
-{{ end }}
-EOF
-}
-
-template {
     destination = "/etc/vault-agent.d/agent.crt"
     error_on_missing_key = true
     contents = <<EOF
@@ -347,7 +337,7 @@ template {
 EOF
 }
 END_FILE
-cat <<'EOF'
+cat <<EOF
 sed -i 's/WIREGUARD_IP/'$wireguard_ip'/g' /etc/vault-agent.d/rotate-certificates.hcl
 
 EOF
