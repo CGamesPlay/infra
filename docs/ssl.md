@@ -21,7 +21,7 @@ vault write -tls-skip-verify pki/issue/server-${DC} \
 VAULT_SKIP_VERIFY=1 /etc/cron.monthly/rotate-certificates
 ```
 
-This script should rotate all of the certificates and reload the affected
+This script should rotate all of the certificates and reload all of the core services, and then Nomad should issue any new certificates for its jobs.
 
 ### How can I renew the root certificate?
 
