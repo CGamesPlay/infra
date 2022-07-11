@@ -27,7 +27,7 @@ docker login registry.$base_domain -u $username -p $password
 You need to configure Nomad to be able to download private images. You can do this through the typical way: setting the `auth` stanza in the job file, but you can also configure the authentication globally so all Nomad jobs can use it without additional configuration. Steps:
 
 1. Manually run `docker login` on each client node as the root account, so that the authentication info is cached in `/root/.docker/config.json`.
-2. Merge the following config into the `client.hcl` on each client node.
+2. Merge the following config into the `/etc/nomad.d/client.hcl` on each client node.
 3. Restart the Nomad clients.
 
 ```hcl

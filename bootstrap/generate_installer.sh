@@ -422,6 +422,14 @@ client {
   cni_config_dir = "/etc/cni.d"
   network_interface = "wg0"
 }
+
+plugin "docker" {
+  config {
+    gc {
+      image_delay = "12h"
+    }
+  }
+}
 EOF
 
 emit_tee /etc/systemd/system/nomad.service <<'EOF'
