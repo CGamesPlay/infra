@@ -58,10 +58,11 @@ job "backup" {
         perms = "755"
         data = <<-EOF
         #!/bin/bash
+        exec 2>&1
         set -uexo pipefail
         restic version
         wg-quick save /etc/wireguard/wg0.conf
-        restic backup --verbose /opt /etc /home/ubuntu --exclude-file=local/excludes.txt
+        restic backup --verbose /opt /etc /home/ubuntu --exclude-file=local/excludes.txt --exclude-caches -o s3.storage-class=STANDARD_IA
         # This is pressently commented out because it has no effect yet.
         # Ideally, restic 0.12 will be installed when uncommenting it, since
         # that has substantial prune performance improvements.
