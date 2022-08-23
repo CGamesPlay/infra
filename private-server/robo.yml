@@ -1,0 +1,4 @@
+new-template:
+  summary: Create a new machine from a stock image
+  command: |
+    ./template-user-data.py | hcloud server create --image ubuntu-22.04 --type cx21 --name server-template --datacenter nbg1-dc3 --user-data-from-file -
