@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+import subprocess
+import argparse
+from glob import glob
+import os
+from datetime import datetime, timedelta
+import time
+import signal
+import sys
+
+keepalive_file = f'/tmp/auto-shutdown-keepalive-{os.getpid()}'
+idle_timeout = timedelta(minutes=1)
+
+def most_recent_file(pattern):
+    paths = glob(pattern)
+    atime = lambda path: datetime.fromtimestamp(os.stat(path).st_atime)
+    if len(paths) == 0:
+        return (None, None)
+    return max(((x, atime(x)) for x in paths), key=lambda x: x[1])
+
+def most_active_pty():
+    return most_recent_file('/dev/pts/*')
+
+def keepalive_time():
+    return most_recent_file('/tmp/auto-shutdown-keepalive-*')
+
+def touch_keepalive(value):
+    if value is None:
+        try:
+            os.unlink(keepalive_file)
+        except FileNotFoundError:
+            pass
+    else:
+        with open(keepalive_file, 'a') as f:
+            os.utime(keepalive_file, (value.timestamp(), value.timestamp()))
+
+def get_activity():
+    activity = {}
+    sources = [most_active_pty, keepalive_time]
+    for f in sources:
+        name, timestamp = f()
+        if timestamp is not None:
+            activity[name] = timestamp
+    return activity
+
+def shutdown():
+    subprocess.run('poweroff', check=True)
+
+def status(args):
+    now = datetime.now()
+    activity = get_activity()
+    print('Last activity:')
+    for key, value in activity.items():
+        age = now - value
+        print(f'{key}  \t{age} ago')
+    overall = max((x[1] for x in activity.items()))
+    shutdown_time = overall + idle_timeout
+    print(f'Machine will auto-shutdown at {shutdown_time} (in {shutdown_time - now})')
+
+def daemon(args):
+    while True:
+        now = datetime.now()
+        last_activity = max((x[1] for x in get_activity().items()))
+        shutdown_time = last_activity + idle_timeout
+        if now >= shutdown_time:
+            shutdown()
+            return
+        else:
+            time.sleep((shutdown_time - now).total_seconds())
+
+def caffeinate(args):
+    command = " ".join(args.COMMAND)
+    process = subprocess.Popen(command, shell=True)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+    poll_period = idle_timeout / 2
+    while True:
+        touch_keepalive(datetime.now())
+        try:
+            process.wait(timeout=poll_period.total_seconds())
+            break
+        except subprocess.TimeoutExpired:
+            pass
+    touch_keepalive(None)
+    sys.exit(process.returncode)
+
+parser = argparse.ArgumentParser()
+subparsers = parser.add_subparsers()
+
+parser_status = subparsers.add_parser('status')
+parser_status.set_defaults(func=status)
+
+parser_daemon = subparsers.add_parser('daemon')
+parser_daemon.set_defaults(func=daemon)
+
+parser_caffeinate = subparsers.add_parser('caffeinate')
+parser_caffeinate.add_argument('COMMAND', nargs='+')
+parser_caffeinate.set_defaults(func=caffeinate)
+
+args = parser.parse_args()
+args.func(args)
