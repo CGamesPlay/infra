@@ -1,0 +1,163 @@
+---
+  - name: configure consul
+    hosts: '*'
+    become: true
+    gather_facts: false
+    tags:
+      - consul
+    tasks:
+      - name: "create directories"
+        file:
+          path: "{{ item }}"
+          mode: 0750
+          owner: consul
+          group: consul
+          state: directory
+        loop:
+          - /opt/consul
+          - /etc/consul.d
+      - name: "touch config files"
+        file:
+          path: "{{ item }}"
+          mode: 0640
+          owner: consul
+          group: consul
+          state: touch
+        changed_when: no
+        loop:
+          - /opt/consul/agent.crt
+          - /opt/consul/agent.key
+          - /etc/consul.d/gossip.hcl
+      - template:
+          src: ../templates/consul/consul.hcl.j2
+          dest: /etc/consul.d/consul.hcl
+        notify:
+          - reload consul
+      - copy:
+          src: ../templates/consul/server.hcl
+          dest: /etc/consul.d/server.hcl
+          owner: consul
+          group: consul
+        notify:
+          - reload consul
+      - copy:
+          src: ../templates/consul/client.hcl
+          dest: /etc/consul.d/client.hcl
+          owner: consul
+          group: consul
+        notify:
+          - reload consul
+      - name: prepare consul secrets
+        shell:
+          cmd: |
+            if ! vault read kv/cluster/consul_config >/dev/null 2>&1; then
+              vault write kv/cluster/consul_config gossip_key=$(consul keygen)
+            else
+              echo "Nothing to do"
+            fi
+        register: prepare_consul_secrets
+        changed_when: "'Nothing to do' not in prepare_consul_secrets.stdout"
+
+      - name: consul encryption
+        blockinfile:
+          path: /etc/vault-agent.d/vault-agent.hcl
+          marker: "# {mark} CONSUL GOSSIP CONFIG"
+          block: |
+            template {
+                destination = "/etc/consul.d/gossip.hcl"
+                perms = "0640"
+                error_on_missing_key = true
+                contents = <<EOF
+            {{ '{{' }}- with secret "kv/cluster/consul_config" -}}
+            encrypt = "{{ '{{' }} .Data.gossip_key }}"
+            {{ '{{' }}- end }}
+            EOF
+                exec {
+                    command = "if systemctl is-active consul; then service consul reload; fi"
+                }
+            }
+        notify:
+          - restart vault-agent
+
+      - template:
+          src: ../templates/consul/consul.service.j2
+          dest: /etc/systemd/system/consul.service
+      - systemd:
+          name: consul
+          state: started
+          enabled: true
+      - name: wait for consul to come up
+        wait_for:
+          port: 8500
+
+      - name: bootstrap consul ACL
+        command: consul acl bootstrap -format=json
+        register: consul_acl_bootstrap_raw
+        failed_when:
+          - consul_acl_bootstrap_raw.rc != 0
+          - "'ACL bootstrap no longer allowed' not in consul_acl_bootstrap_raw.stderr"
+        changed_when:
+          - consul_acl_bootstrap_raw.rc == 0
+        retries: 3
+        until: consul_acl_bootstrap_raw is not failed
+      - block:
+          - set_fact:
+              consul_acl_bootstrap: "{{ consul_acl_bootstrap_raw.stdout | from_json }}"
+
+          - name: configure consul ACL
+            script: ../templates/consul/initial-setup.sh
+            environment:
+              - CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap.SecretID }}"
+          - name: create consul token for vault
+            command: consul acl token create -format=json -description "Vault token" -policy-name vault
+            register: vault_token
+            environment:
+              - CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap.SecretID }}"
+          - name: register consul token with vault
+            lineinfile:
+              path: /etc/vault.d/vault.env
+              regexp: '^CONSUL_HTTP_TOKEN='
+              line: 'CONSUL_HTTP_TOKEN={{ (vault_token.stdout | from_json).SecretID }}'
+            register: vault_consul_token
+
+          - name: store consul token in vault
+            shell:
+              cmd: |
+                vault write kv/cluster/consul token="$CONSUL_HTTP_TOKEN"
+            environment:
+              - CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap.SecretID }}"
+          - name: prepare nomad secrets in vault
+            shell:
+              cmd: |
+                vault write kv/cluster/nomad_config gossip_key=$(nomad operator keygen) consul_token="$CONSUL_HTTP_TOKEN"
+            environment:
+              - CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap.SecretID }}"
+            register: prepare_consul_secrets
+        when: consul_acl_bootstrap_raw.rc == 0
+
+      - name: configure system DNS to use consul
+        block:
+          - lineinfile:
+              path: /etc/systemd/resolved.conf
+              regexp: '^DNS='
+              line: 'DNS=127.0.0.1'
+          - lineinfile:
+              path: /etc/systemd/resolved.conf
+              regexp: '^Domains='
+              line: 'Domains=~consul'
+        notify:
+          - restart resolved
+
+    handlers:
+      - name: reload consul
+        systemd:
+          name: consul
+          state: reloaded
+      - name: restart resolved
+        systemd:
+          name: systemd-resolved
+          state: restarted
+      - name: restart vault-agent
+        systemd:
+          name: vault-agent
+          state: restarted

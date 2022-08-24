@@ -1,0 +1,43 @@
+---
+  - hosts: '*'
+    gather_facts: false
+    tags:
+      - always
+    tasks:
+      - name: wait for cloud-init
+        command: cloud-init status -w
+        changed_when: no
+
+  - import_playbook: playbooks/vault.yml
+  - import_playbook: playbooks/vault-agent.yml
+  - import_playbook: playbooks/wireguard.yml
+  - import_playbook: playbooks/consul.yml
+
+  - hosts: '*'
+    # Vault has to be bounced after Consul setup finishes so that it
+    # registers itself.
+    become: true
+    gather_facts: false
+    tags:
+      - vault
+      - consul
+    tasks:
+      - name: bounce vault
+        when:
+          - vault_consul_token is defined
+          - vault_init_output is defined
+        block:
+          - name: restart vault
+            systemd:
+              name: vault
+              state: restarted
+            register: restart_vault
+            until: restart_vault is not failed
+          - name: unseal vault
+            command: vault operator unseal {{ item }}
+            loop: "{{ vault_init_output.unseal_keys_b64 | default(vault_unseal_keys) }}"
+            loop_control:
+              label: "hidden"
+            no_log: yes
+
+  - import_playbook: playbooks/nomad.yml

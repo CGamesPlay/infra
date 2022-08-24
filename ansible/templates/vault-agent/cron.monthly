@@ -1,0 +1,5 @@
+#!/bin/bash
+# This script periodically runs vault-agent to rotate TLS certificates.
+set -ueo pipefail
+
+vault agent -config=/etc/vault-agent.d/rotate-certificates.hcl -exit-after-auth

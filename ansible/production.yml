@@ -1,0 +1,7 @@
+production:
+  hosts:
+    master:
+      ansible_connection: local
+      instance_id: master
+      DC: nbg1
+      wireguard_ip: 172.30.0.1

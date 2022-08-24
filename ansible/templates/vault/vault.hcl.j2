@@ -1,0 +1,20 @@
+ui = true
+# If the Wireguard interface isn't set up, default to localhost.
+api_addr = "https://{{ '{{' }} or (GetInterfaceIP \"wg0\") \"127.0.0.1\" }}:8200/"
+cluster_addr = "https://{{ '{{' }} or (GetInterfaceIP \"wg0\") \"127.0.0.1\" }}:8201/"
+plugin_directory = "/usr/lib/vault"
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "/opt/vault/server.crt"
+  tls_key_file  = "/opt/vault/server.key"
+}
+
+storage "raft" {
+  path = "/opt/vault/raft"
+  node_id = "{{ inventory_hostname }}"
+}
+
+service_registration "consul" {
+  address      = "127.0.0.1:8500"
+}

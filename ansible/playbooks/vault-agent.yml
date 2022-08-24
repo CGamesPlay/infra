@@ -1,0 +1,205 @@
+---
+  - name: configure vault agent
+    # This will set up vault-agent to rotate certificates and manage
+    # other secrets like gossip keys and root tokens. We use a one-shot
+    # execution of vault-agent for certificate rotation, and a daemon
+    # for the other configuration.
+    #
+    # TODO: switch to consul-template. Vault agent does not support
+    # reloading, only restarting.
+    #
+    # TODO: switch to using pkiCert instead of secrets function.
+    # However, it appears to be completely broken (.Key is empty).
+    hosts: '*'
+    become: true
+    gather_facts: false
+    tags:
+      - always
+    tasks:
+      - file:
+          path: /etc/vault-agent.d
+          mode: 0750
+          state: directory
+      - template:
+          src: ../templates/vault-agent/vault-agent.service.j2
+          dest: /etc/systemd/system/vault-agent.service
+      - copy:
+          src: ../templates/vault-agent/cron.monthly
+          dest: /etc/cron.monthly/rotate-certificates
+          mode: 0755
+        notify:
+          - rotate certificates
+
+      - name: vault agent base config
+        blockinfile:
+          path: /etc/vault-agent.d/vault-agent.hcl
+          marker: "# {mark} VAULT AGENT CONFIG"
+          create: yes
+          block: |
+            vault {
+                address = "https://127.0.0.1:8200/"
+                ca_cert = "/usr/local/share/ca-certificates/vault.global.crt"
+                client_cert = "/etc/vault-agent.d/agent.crt"
+                client_key = "/etc/vault-agent.d/agent.key"
+            }
+
+            auto_auth {
+                method "cert" {}
+            }
+
+      - block:
+        - name: rotate certificates base config
+          blockinfile:
+            path: /etc/vault-agent.d/rotate-certificates.hcl
+            marker: "# {mark} VAULT AGENT CONFIG"
+            create: yes
+            block: |
+              vault {
+                  address = "https://127.0.0.1:8200/"
+                  ca_cert = "/usr/local/share/ca-certificates/vault.global.crt"
+                  client_cert = "/etc/vault-agent.d/agent.crt"
+                  client_key = "/etc/vault-agent.d/agent.key"
+              }
+
+              auto_auth {
+                  method "cert" {}
+              }
+
+              template {
+                  destination = "/etc/vault-agent.d/agent.crt"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.vault" "ttl=1440h"}}
+              {{ '{{' }} .Data.certificate }}
+              {{ '{{' }} end }}
+              EOF
+              }
+
+              template {
+                  destination = "/etc/vault-agent.d/agent.key"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.vault" "ttl=1440h"}}
+              {{ '{{' }} .Data.private_key }}
+              {{ '{{' }} end }}
+              EOF
+                  exec {
+                      command = "if systemctl is-active vault-agent; then service vault-agent reload; fi"
+                  }
+              }
+
+        - name: vault server ssl config
+          blockinfile:
+            path: /etc/vault-agent.d/rotate-certificates.hcl
+            create: yes
+            marker: "# {mark} VAULT SERVER SSL CONFIG"
+            block: |
+              template {
+                  destination = "/opt/vault/server.crt"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
+              {{ '{{' }} .Data.certificate }}
+              {{ '{{' }} end }}
+              EOF
+              }
+
+              template {
+                  destination = "/opt/vault/server.key"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
+              {{ '{{' }} .Data.private_key }}
+              {{ '{{' }} end }}
+              EOF
+                  exec {
+                      command = "if systemctl is-active vault; then service vault reload; fi"
+                  }
+              }
+          tags:
+            - vault
+
+        - name: consul ssl config
+          blockinfile:
+            path: /etc/vault-agent.d/rotate-certificates.hcl
+            create: yes
+            marker: "# {mark} CONSUL SSL CONFIG"
+            block: |
+              template {
+                  destination = "/opt/consul/agent.crt"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} .Data.certificate }}
+              {{ '{{' }} end }}
+              EOF
+              }
+
+              template {
+                  destination = "/opt/consul/agent.key"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,consul.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} .Data.private_key }}
+              {{ '{{' }} end }}
+              EOF
+                  exec {
+                      command = "if systemctl is-active consul; then service consul reload; fi"
+                  }
+              }
+          tags:
+            - consul
+
+        - name: nomad ssl config
+          blockinfile:
+            path: /etc/vault-agent.d/rotate-certificates.hcl
+            create: yes
+            marker: "# {mark} NOMAD SSL CONFIG"
+            block: |
+              template {
+                  destination = "/opt/nomad/agent.crt"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} .Data.certificate }}
+              {{ '{{' }} end }}
+              EOF
+              }
+
+              template {
+                  destination = "/opt/nomad/agent.key"
+                  perms = "0640"
+                  error_on_missing_key = true
+                  contents = <<EOF
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} .Data.private_key }}
+              {{ '{{' }} end }}
+              EOF
+                  exec {
+                      command = "if systemctl is-active nomad; then service nomad reload; fi"
+                  }
+              }
+          tags:
+            - nomad
+        notify: rotate certificates
+
+      - systemd:
+          name: vault-agent
+          state: started
+          enabled: true
+        register: start_vault_agent
+    handlers:
+      - name: rotate certificates
+        command: /etc/cron.monthly/rotate-certificates
+      - name: restart vault-agent
+        systemd:
+          name: vault-agent
+          state: restarted
+        when: not start_vault_agent.changed

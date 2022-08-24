@@ -1,0 +1,51 @@
+#!/bin/bash
+set -eu
+
+peer=$1
+shift
+
+if vault read wireguard/groups/default/$peer >/dev/null 2>&1; then
+    echo "Printing existing configuration for $peer"
+else
+    num_peers=$(vault list -format=json wireguard/groups/default | jq -r '. | length')
+    next_ip={{ wireguard_ip | splitext | first }}.$((num_peers + 1))
+    echo "Allocating $next_ip for $peer"
+
+    vault write wireguard/groups/default/$peer allowed_ips=$next_ip/32
+fi
+vault write -force wireguard/groups/default/$peer "$@"
+service vault-agent restart
+
+template=$(mktemp)
+result=$(mktemp)
+cat >>$template <<EOF
+# Configuration for $peer
+{{ '{{' }} with secret "wireguard/groups/default/$peer" -}}
+[Interface]
+Address = {{ '{{' }} range \$i, \$ip := .Data.allowed_ips }}{{ '{{' }} if ne \$i 0 }},{{ '{{' }} end }}{{ '{{' }} \$ip }}{{ '{{' }} end }}
+PrivateKey = {{ '{{' }} .Data.private_key }}
+
+{{ '{{' }} end }}
+{{ '{{' }}- range secrets "wireguard/groups/default/" -}}
+{{ '{{' }}- with secret (printf "wireguard/groups/default/%s" .) -}}
+{{ '{{' }}- if ne .Data.port "0" -}}
+[Peer]
+Endpoint = {{ '{{' }} .Data.hostname }}:{{ '{{' }} .Data.port }}
+PublicKey = {{ '{{' }} .Data.public_key }}
+AllowedIPs = {{ '{{' }} range \$i, \$ip := .Data.allowed_ips }}{{ '{{' }} if ne \$i 0 }},{{ '{{' }} end }}{{ '{{' }} \$ip }}{{ '{{' }} end }}
+
+{{ '{{' }} end -}}
+{{ '{{' }}- end -}}
+{{ '{{' }}- end -}}
+EOF
+
+consul-template -once -vault-renew-token=false -template "$template:$result"
+service vault-agent restart
+
+clear
+echo
+cat $result | qrencode -t ansiutf8
+echo
+cat $result
+
+rm $template $result

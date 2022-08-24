@@ -1,8 +1,5 @@
 terraform {
-  backend "s3" {
-    bucket = "infra-029993131878"
-    key    = "terraform"
-    region = "eu-central-1"
+  backend "local" {
   }
 
   required_providers {
@@ -16,36 +13,34 @@ terraform {
 }
 
 provider "hcloud" {
-  token = var.hcloud_token
 }
 
-variable "hcloud_token" {
-  type        = string
-  description = "token for use with hcloud"
+variable "datacenter" {
+  type = string
+  description = "internal name of the target data center"
+  default = "nbg1"
+  nullable = false
 }
 
-variable "hcloud_key_name" {
-  type        = string
-  description = "keypair which will be used for all hcloud instances"
-}
+data "external" "master_user_data" {
+  program = ["${path.module}/master_user_data.py"]
 
-data "template_cloudinit_config" "master_cloudinit" {
-  part {
-    content_type = "text/cloud-config"
-    content      = file("master_user_data.yaml")
+  query = {
+    # arbitrary map from strings to strings, passed
+    # to the external program as the data query.
   }
 }
 
 resource "hcloud_network" "network" {
   name     = "network"
-  ip_range = "172.31.0.0/16"
+  ip_range = "172.30.0.0/16"
 }
 
 resource "hcloud_network_subnet" "network_subnet" {
   type         = "cloud"
   network_id   = hcloud_network.network.id
   network_zone = "eu-central"
-  ip_range     = "172.31.0.0/20"
+  ip_range     = "172.30.0.0/20"
 }
 
 resource "hcloud_firewall" "firewall" {
@@ -82,17 +77,18 @@ resource "hcloud_firewall" "firewall" {
 }
 
 resource "hcloud_server" "master" {
-  name         = "master"
-  image        = "ubuntu-20.04"
-  location     = "nbg1"
-  server_type  = "cx21"
-  ssh_keys     = [var.hcloud_key_name]
-  user_data    = data.template_cloudinit_config.master_cloudinit.rendered
-  firewall_ids = [hcloud_firewall.firewall.id]
+  name              = "master"
+  image             = "ubuntu-20.04"
+  location          = "nbg1"
+  server_type       = "cx21"
+  user_data         = data.external.master_user_data.result.rendered
+  firewall_ids      = [hcloud_firewall.firewall.id]
+  rebuild_protection = terraform.workspace == "default"
+  delete_protection = terraform.workspace == "default"
 
   network {
     network_id = hcloud_network.network.id
-    ip         = "172.31.0.2"
+    ip         = "172.30.0.2"
   }
 
   # Note: the depends_on is important when directly attaching the server to a
@@ -103,13 +99,13 @@ resource "hcloud_server" "master" {
   ]
 }
 
-resource "hcloud_volume" "master-drive" {
+resource "hcloud_volume" "master_drive" {
   name              = "master-drive"
   size              = 20
   server_id         = hcloud_server.master.id
   automount         = false
   format            = "ext4"
-  delete_protection = true
+  delete_protection = terraform.workspace == "default"
 }
 
 output "master_ip" {

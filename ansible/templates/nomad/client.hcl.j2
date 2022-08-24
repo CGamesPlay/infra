@@ -1,0 +1,33 @@
+client {
+  enabled = true
+  reserved = {
+    cpu = 500
+    memory = 400
+    disk = 1024
+  }
+  cni_path = "/usr/local/cni/bin"
+  cni_config_dir = "/etc/cni.d"
+  network_interface = "wg0"
+}
+
+plugin "docker" {
+  config {
+    auth {
+      config = "/root/.docker/config.json"
+    }
+
+    volumes {
+      enabled = true
+    }
+
+    gc {
+      image_delay = "12h"
+    }
+  }
+}
+
+plugin "raw_exec" {
+  config {
+    enabled = true
+  }
+}

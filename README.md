@@ -20,6 +20,10 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 
 [Terraform](https://www.terraform.io) is used to describe the very simple infrastructure requirements for the cluster. This is primarily intended to be a base for future improvements, if the cluster ever needs to move to a multi-node setup.
 
+**Ansible**
+
+[Ansible](https://www.ansible.com) is used to update all configuration files on all nodes. This includes the configuration for Vault, Vault Agent, Consul, Nomad, and WireGuard.
+
 **Nomad**
 
 The master node runs the Nomad server, and all other nodes run Nomad clients. Nomad is responsible for running Traefik and all of the actual workloads. Nomad needs a way to know which machines are Nomad clients, and what workloads they are running, for which it uses Consul.
@@ -30,7 +34,7 @@ Consul is used to store configuration and state information about the cluster. E
 
 **Vault**
 
-Vault is used to store secrets and issue internal TLS certificates. It is not directly required by Nomad, but Nomad does have a tight Vault integration to allow workloads to securely receive secrets. Vault stores its data in Consul (:warning: in a real production system we would want to use a separate Consul cluster specifically to store Vault data).
+Vault is used to store secrets and issue internal TLS certificates. It is not directly required by Nomad, but Nomad does have a tight Vault integration to allow workloads to securely receive secrets. Vault stores its data in Consul (:warning: in a real production system we would want to use a separate Consul cluster specifically to store Vault data). Vault Agent is a component of Vault which is used to update configuration files which contain secret data, and is used to rotate TLS certificates as well as to manage the encryption keys and tokens used by the other services.
 
 **WireGuard**
 
@@ -38,18 +42,25 @@ WireGuard is used to secure communications between cluster nodes. This allows us
 
 ## Installation
 
-1. Use `bootstrap/prepare.sh` to create a local Consul and Vault instance that is pre-bootstrapped. This design allows you to experiment locally with the applications while preparing to bootstrap.
-2. Use `terraform apply` in the `infra` directory to create the infrastructure.
-3. Use `bootstrap/generate_installer.sh` to generate a bash script. You can either manually enter these commands onto your server, or use a script like `bootstrap/generate_installer.sh | ssh MY_IP -- sudo bash`.
-4. Set up your local environment using the access tokens from `bootstrap/data`, and securely delete the folder afterwards. Take special care to store the Vault unlock key someplace secure!
-5. Set up your local environment with the necessary credentials.
-6. Begin using Nomad in your new cluster. Note: you will need to run `nomad acl bootstrap` to create your initial root token; the prepare script does not create one for you.
+1. Configure your environment. The requirements:
+   - `HCLOUD_TOKEN` is the Hetzner Cloud token.
+   - `ssh-add -L` needs to show at least one key (it will be used as the key for the created instances).
+2. Run `robo production terraform-infra apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
+3. Run `robo production ansible` to apple the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed.
+  - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
+4. Connect to the machine using ssh (use `robo production master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer. Use `service vault-agent restart` to force an update of the WireGuard configuration.
+
+Next steps:
+
+- Retrieve the nomad token from Vault.
+  - Write a robot script to do this.
+- Deploy jobs with Nomad.
+  - Write a Terraform script to do this.
 
 ### Local environment setup
 
 To access the cluster from your local machine:
 
-- Use the generated Wireguard config file at `bootstrap/data/wg0.conf` to connect to the datacenter.
 - Install the generated CA at `bootstrap/data/ca.crt` to configure SSL. You can install it using Keychain Access.app into the login keychain, but you will need to manually trust the certificate, which is done from the certificate info window under "Trust".
   - This also enables UI access in the browser: [Consul](https://172.30.0.1:8501/) | [Vault](https://172.30.0.1:8200/) | [Nomad](https://172.30.0.1:4646/)
 
@@ -66,13 +77,13 @@ export VAULT_TOKEN=...
 
 You can find initial root tokens for Consul in `bootstrap/data/consul-acl.txt` and for Vault in `bootstrap/data/vault-root-keys.txt`.
 
-### Accessing Consul DNS over Wireguard on macOS
+### Accessing Consul DNS over Wireguard
 
 The generated WireGuard configuration does not specify DNS servers for the tunnel. If you want to resolve `service.consul` addresses through the tunnel, you need to either route all DNS through the tunnel, or configure your machine to only route the desired queries through the tunnel.
 
 **macOS**
 
-You can configure your macOS system DNS to use the tunnel for the `service.consul` domain only using this snippet. [This StackExchange answer](https://apple.stackexchange.com/a/385218/14873) has more information and debugging tips.
+You can configure your macOS system DNS to use the tunnel for the `.consul` TLD only using this snippet. [This StackExchange answer](https://apple.stackexchange.com/a/385218/14873) has more information and debugging tips.
 
 ```bash
 sudo scutil <<EOF
@@ -119,8 +130,8 @@ plugin "docker" {
 | -------------- | ------------------------------------------------------------ |
 | 172.17.0.0/16  | Internal addresses for Docker containers.                    |
 | 172.30.0.0/16  | Wireguard addresses. This is the main way in which nodes communicate with each other. |
-| 172.30.0.0/20  | Wireguard subnet for nbg1.                                   |
-| 172.30.15.0/24 | Reserved for incoming links to nbg1.                         |
+| 172.30.252.0/22  | Roaming peer subnet. |
+| 172.30.0.0/22  | Peers located in nbg1. |
 | 172.31.0.0/16  | Physical IP address of nodes. The particular arrangement of this subnet depends on the datacenter. |
 
 Set up security groups such that the machines in the cluster can only communicate with each other over Wireguard (51820 UDP). Incoming connections will only go to the traefik machine.

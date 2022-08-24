@@ -1,3 +1,5 @@
-/bootstrap/data
 .terraform
 *.tfvars
+terraform.tfstate
+terraform.tfstate.*
+/vault.txt
