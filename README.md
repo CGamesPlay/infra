@@ -46,14 +46,13 @@ WireGuard is used to secure communications between cluster nodes. This allows us
    - `HCLOUD_TOKEN` is the Hetzner Cloud token.
    - `ssh-add -L` needs to show at least one key (it will be used as the key for the created instances).
 2. Run `robo production terraform-infra apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
-3. Run `robo production ansible` to apple the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed.
+3. Run `robo production ansible` to apple the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
   - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
-4. Connect to the machine using ssh (use `robo production master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer. Use `service vault-agent restart` to force an update of the WireGuard configuration.
+  - Optionally, `robo production verify` can be used to diagnose some basic issues now and in the future.
+4. Connect to the machine using ssh (use `robo production master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer.
 
 Next steps:
 
-- Retrieve the nomad token from Vault.
-  - Write a robot script to do this.
 - Deploy jobs with Nomad.
   - Write a Terraform script to do this.
 

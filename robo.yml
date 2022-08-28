@@ -26,6 +26,25 @@ setup-dns:
     set State:/Network/Service/Consul/DNS
     EOF
 
+env:
+  summary: Print environment variables to use services
+  command: |
+    set -ue
+    if ! ping -c 1 master.node.consul >/dev/null 2>&1; then
+      echo "This script requires that WireGuard is connected and DNS is configured." >&2
+      exit 1
+    fi
+    export VAULT_ADDR=https://vault.service.consul:8200/
+    export VAULT_TOKEN=$(ssh master.node.consul -- sudo cat /root/.vault-token)
+    echo "export VAULT_ADDR=$VAULT_ADDR"
+    echo "export VAULT_TOKEN=$VAULT_TOKEN"
+    cat <<EOF
+    export CONSUL_HTTP_ADDR=https://consul.service.consul:8500/
+    export CONSUL_HTTP_TOKEN=$(vault read -field=token kv/cluster/consul)
+    export NOMAD_ADDR=https://nomad.service.consul:4646/
+    export NOMAD_TOKEN=$(vault read -field=token kv/cluster/nomad)
+    EOF
+
 docker-tags:
   summary: list docker tags of named image
   command: |
