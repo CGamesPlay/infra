@@ -9,7 +9,7 @@ terraform {
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "1.32.2"
+      version = "1.35.1"
     }
   }
 
@@ -37,14 +37,14 @@ data "external" "master_user_data" {
 
 resource "hcloud_network" "network" {
   name     = "network"
-  ip_range = "172.30.0.0/16"
+  ip_range = "172.31.0.0/16"
 }
 
 resource "hcloud_network_subnet" "network_subnet" {
   type         = "cloud"
   network_id   = hcloud_network.network.id
   network_zone = "eu-central"
-  ip_range     = "172.30.0.0/20"
+  ip_range     = "172.31.0.0/20"
 }
 
 resource "hcloud_firewall" "firewall" {
@@ -92,7 +92,7 @@ resource "hcloud_server" "master" {
 
   network {
     network_id = hcloud_network.network.id
-    ip         = "172.30.0.2"
+    ip         = "172.31.0.2"
   }
 
   # Note: the depends_on is important when directly attaching the server to a
@@ -101,6 +101,10 @@ resource "hcloud_server" "master" {
   depends_on = [
     hcloud_network_subnet.network_subnet
   ]
+
+  lifecycle {
+    ignore_changes = [ ssh_keys, user_data, image ]
+  }
 }
 
 resource "hcloud_volume" "master_drive" {
