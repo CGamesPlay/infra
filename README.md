@@ -60,21 +60,11 @@ Next steps:
 
 To access the cluster from your local machine:
 
-- Install the generated CA at `bootstrap/data/ca.crt` to configure SSL. You can install it using Keychain Access.app into the login keychain, but you will need to manually trust the certificate, which is done from the certificate info window under "Trust".
+1. Install the generated CA at `bootstrap/data/ca.crt` to configure SSL. You can install it using Keychain Access.app into the login keychain, but you will need to manually trust the certificate, which is done from the certificate info window under "Trust".
   - This also enables UI access in the browser: [Consul](https://172.30.0.1:8501/) | [Vault](https://172.30.0.1:8200/) | [Nomad](https://172.30.0.1:4646/)
-
-The CLI tools require environment variables to be configured as well:
-
-```bash
-export VAULT_ADDR=https://172.30.0.1:8200
-export NOMAD_ADDR=https://172.30.0.1:4646
-export CONSUL_HTTP_ADDR=https://172.30.0.1:8501
-export NOMAD_TOKEN=...
-export CONSUL_HTTP_TOKEN=...
-export VAULT_TOKEN=...
-```
-
-You can find initial root tokens for Consul in `bootstrap/data/consul-acl.txt` and for Vault in `bootstrap/data/vault-root-keys.txt`.
+2. Configure WireGuard and connect it.
+3. Set up local DNS to use Consul.
+4. Use `eval $(robo env)` to get the necessary environment variables.
 
 ### Accessing Consul DNS over Wireguard
 

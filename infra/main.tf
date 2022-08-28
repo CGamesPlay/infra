@@ -1,6 +1,10 @@
 terraform {
-  backend "local" {
+  backend "s3" {
+    bucket = "infra-029993131878"
+    key    = "terraform"
+    region = "eu-central-1"
   }
+
 
   required_providers {
     hcloud = {
@@ -16,10 +20,10 @@ provider "hcloud" {
 }
 
 variable "datacenter" {
-  type = string
+  type        = string
   description = "internal name of the target data center"
-  default = "nbg1"
-  nullable = false
+  default     = "nbg1"
+  nullable    = false
 }
 
 data "external" "master_user_data" {
@@ -77,14 +81,14 @@ resource "hcloud_firewall" "firewall" {
 }
 
 resource "hcloud_server" "master" {
-  name              = "master"
-  image             = "ubuntu-20.04"
-  location          = "nbg1"
-  server_type       = "cx21"
-  user_data         = data.external.master_user_data.result.rendered
-  firewall_ids      = [hcloud_firewall.firewall.id]
+  name               = "master"
+  image              = "ubuntu-20.04"
+  location           = "nbg1"
+  server_type        = "cx21"
+  user_data          = data.external.master_user_data.result.rendered
+  firewall_ids       = [hcloud_firewall.firewall.id]
   rebuild_protection = terraform.workspace == "default"
-  delete_protection = terraform.workspace == "default"
+  delete_protection  = terraform.workspace == "default"
 
   network {
     network_id = hcloud_network.network.id
