@@ -1,5 +1,4 @@
 .terraform
-*.tfvars
 terraform.tfstate
 terraform.tfstate.*
 /vault.txt

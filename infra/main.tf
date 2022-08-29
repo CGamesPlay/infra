@@ -26,6 +26,13 @@ variable "datacenter" {
   nullable    = false
 }
 
+variable "public_ssh" {
+  type        = bool
+  description = "enable SSH via public IP"
+  default     = true
+  nullable    = false
+}
+
 data "external" "master_user_data" {
   program = ["${path.module}/master_user_data.py"]
 
@@ -54,11 +61,14 @@ resource "hcloud_firewall" "firewall" {
     protocol   = "icmp"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "22"
-    source_ips = ["0.0.0.0/0", "::/0"]
+  dynamic "rule" {
+    for_each = var.public_ssh ? [1] : []
+    content {
+      direction  = "in"
+      protocol   = "tcp"
+      port       = "22"
+      source_ips = ["0.0.0.0/0", "::/0"]
+    }
   }
   rule {
     direction  = "in"
@@ -103,7 +113,7 @@ resource "hcloud_server" "master" {
   ]
 
   lifecycle {
-    ignore_changes = [ ssh_keys, user_data, image ]
+    ignore_changes = [ssh_keys, user_data, image]
   }
 }
 

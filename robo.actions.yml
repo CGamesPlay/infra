@@ -1,6 +1,6 @@
 terraform-infra:
   summary: ensure that all cloud resources are up to date
-  command: terraform -chdir={{ .robo.path }}/infra "$@"
+  command: terraform -chdir={{ .robo.path }}/infra "$@" -var-file=$TF_WORKSPACE.tfvars
   examples:
     - description: Preview infrastructure changes
       command: robo terraform-infra plan

@@ -39,7 +39,7 @@ env:
     echo "export VAULT_ADDR=$VAULT_ADDR"
     echo "export VAULT_TOKEN=$VAULT_TOKEN"
     cat <<EOF
-    export CONSUL_HTTP_ADDR=https://consul.service.consul:8500/
+    export CONSUL_HTTP_ADDR=consul.service.consul:8500
     export CONSUL_HTTP_TOKEN=$(vault read -field=token kv/cluster/consul)
     export NOMAD_ADDR=https://nomad.service.consul:4646/
     export NOMAD_TOKEN=$(vault read -field=token kv/cluster/nomad)
