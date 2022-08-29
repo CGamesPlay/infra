@@ -133,7 +133,9 @@
             environment:
               - CONSUL_HTTP_TOKEN: "{{ consul_acl_bootstrap.SecretID }}"
             register: prepare_consul_secrets
-        when: consul_acl_bootstrap_raw.rc == 0
+        when:
+          - not ansible_check_mode
+          - consul_acl_bootstrap_raw.rc == 0
 
       - name: configure system DNS to use consul
         block:

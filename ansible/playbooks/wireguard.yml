@@ -4,6 +4,7 @@
     become: true
     gather_facts: false
     tags:
+      - wireguard
       - always
     tasks:
       - name: set vault wireguard policy
@@ -76,9 +77,11 @@
           value: '1'
           sysctl_set: true
 
-      - name: install qrencode
+      - name: install dependencies
         apt:
-          name: qrencode
+          name:
+            - qrencode
+            - jq
       - name: install wg-add-peer
         template:
           src: ../templates/wireguard/wg-add-peer.j2

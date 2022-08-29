@@ -67,7 +67,6 @@
       - name: check status of vault
         command: vault status -ca-cert=/opt/vault/server.crt -format=yaml
         register: vault_status_raw
-        check_mode: no
         changed_when: false
         failed_when:
           - vault_status_raw.rc == 1
@@ -77,7 +76,9 @@
       - name: initialize vault
         command: vault operator init -ca-cert=/opt/vault/server.crt -key-shares=1 -key-threshold=1 -format=yaml
         register: vault_operator_init
-        when: not vault_status.initialized
+        when:
+          - vault_status.initialized is defined
+          - not vault_status.initialized
       - set_fact:
           vault_init_output: "{{ vault_operator_init.stdout | from_yaml }}"
         when:

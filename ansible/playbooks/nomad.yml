@@ -126,15 +126,17 @@
           - nomad_acl_bootstrap_raw.rc == 0
         environment:
           - NOMAD_ADDR: https://127.0.0.1:4646/
-      - set_fact:
-          nomad_acl_bootstrap: "{{ nomad_acl_bootstrap_raw.stdout | from_json }}"
-        when: nomad_acl_bootstrap_raw.rc == 0
-      - name: store nomad token in vault
-        shell:
-          cmd: vault write kv/cluster/nomad token="$NOMAD_TOKEN"
-        environment:
-          - NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
-        when: nomad_acl_bootstrap_raw.rc == 0
+      - block:
+          - set_fact:
+              nomad_acl_bootstrap: "{{ nomad_acl_bootstrap_raw.stdout | from_json }}"
+          - name: store nomad token in vault
+            shell:
+              cmd: vault write kv/cluster/nomad token="$NOMAD_TOKEN"
+            environment:
+              - NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+        when:
+          - not ansible_check_mode
+          - nomad_acl_bootstrap_raw.rc == 0
     handlers:
       - name: reload nomad
         systemd:

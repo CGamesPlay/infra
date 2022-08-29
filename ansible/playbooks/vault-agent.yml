@@ -14,6 +14,7 @@
     become: true
     gather_facts: false
     tags:
+      - vault-agent
       - always
     tasks:
       - file:
