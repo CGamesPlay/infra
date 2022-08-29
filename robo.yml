@@ -7,7 +7,7 @@ staging:
   command: TF_WORKSPACE=staging robo -c robo.actions.yml "$@"
 
 deploy:
-  summary: deploy one or more jobs
+  summary: deploy one or more jobs to the active environment
   command: exec scripts/levant.sh deploy "$@"
   usage: "[job...]"
   examples:
