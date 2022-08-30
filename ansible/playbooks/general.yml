@@ -1,0 +1,20 @@
+---
+  - hosts: '*'
+    gather_facts: false
+    become: yes
+    tags:
+      - general
+    tasks:
+      - name: allocate swapfile
+        shell:
+          creates: /swapfile
+          cmd: |
+            set -e
+            fallocate -l 4G /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+      - lineinfile:
+          path: /etc/fstab
+          regexp: '/swapfile'
+          line: '/swapfile swap swap defaults 0 0'
