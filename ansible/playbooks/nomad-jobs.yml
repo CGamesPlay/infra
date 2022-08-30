@@ -1,5 +1,8 @@
 ---
   - hosts: '*'
+    # This playbook is responsible for deploying all of the Nomad
+    # workloads. It runs locally, and must be configured with environment
+    # variables set by `robo env`.
     gather_facts: false
     tasks:
       - name: gather jobs

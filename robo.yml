@@ -52,7 +52,7 @@ docker-tags:
 integration-test:
   summary: Complete integration test in staging environment
   command: |
-    robo staging terraform-infra apply -auto-approve
+    robo staging terraform apply -auto-approve
     # Give some time for ssh to come up. Doesn't slow us down because
     # cloud-init takes time to finish anyways.
     sleep 10
