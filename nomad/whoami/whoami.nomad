@@ -11,7 +11,7 @@ job "whoami" {
     network {
       mode = "bridge"
       port "http" {
-        to = 8080
+        to = 80
       }
     }
 

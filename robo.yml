@@ -8,13 +8,12 @@ staging:
 
 deploy:
   summary: deploy one or more jobs to the active environment
-  command: exec scripts/levant.sh deploy "$@"
-  usage: "[job...]"
+  command: ansible-playbook -i localhost, --connection=local ansible/playbooks/nomad-jobs.yml "$@"
   examples:
-    - description: Deploy all jobs, except those in directories ending in ".disabled".
-      command: robo deploy
+    - description: Preview a deploy of all jobs.
+      command: robo deploy -CD
     - description: Deploy only the "traefik" and "backup" jobs.
-      command: robo deploy traefik backup
+      command: robo deploy -t traefik,backup
 
 setup-dns:
   summary: add Consul DNS to system settings

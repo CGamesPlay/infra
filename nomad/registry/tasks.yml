@@ -1,0 +1,5 @@
+---
+  - nomad_job:
+      name: "{{ job_name }}"
+      job_file: "{{ job_dir }}/{{ job_name }}.nomad"
+      state: present

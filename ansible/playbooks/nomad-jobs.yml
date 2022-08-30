@@ -1,0 +1,15 @@
+---
+  - hosts: '*'
+    gather_facts: false
+    tasks:
+      - name: gather jobs
+        include_tasks:
+          file: "../../{{ item }}"
+          apply:
+            tags:
+              - "{{ item | dirname | basename | splitext | first }}"
+        vars:
+          - job_dir: "../../{{ item | dirname }}"
+          - job_name: "{{ item | dirname | basename | splitext | first }}"
+        loop: "{{ 'nomad/*/tasks.yml' | fileglob }}"
+        tags: always
