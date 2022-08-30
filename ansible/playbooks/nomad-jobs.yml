@@ -11,5 +11,5 @@
         vars:
           - job_dir: "../../{{ item | dirname }}"
           - job_name: "{{ item | dirname | basename | splitext | first }}"
-        loop: "{{ 'nomad/*/tasks.yml' | fileglob }}"
+        loop: "{{ ['nomad/registry/tasks.yml'] + ('nomad/*/tasks.yml' | fileglob | reject('search', '/registry/') | sort) }}"
         tags: always

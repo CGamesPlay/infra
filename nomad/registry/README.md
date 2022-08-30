@@ -4,16 +4,14 @@ The private Docker registry provides a convenient way to host private images whi
 
 ## Installation
 
-Authentication on the registry is configured through the `htpasswd` mechanism.
-
->  Presently, the file is statically configured on the developer machine (I only use a single user for the entire registry, so this is sufficient for me). This information could alternatively be stored in Vault.
-
-Create the `htpasswd` file locally:
+Authentication on the registry is configured through the `htpasswd` mechanism. The password file is stored in Vault. To create a suitable file, run a script like this one:
 
 ```bash
 username=my_username
 password=$(openssl rand -base64 32)
-docker run --rm --entrypoint htpasswd httpd:2 -Bbn $username $password > htpasswd
+password_hash=$(python3 -c 'import bcrypt; print(bcrypt.hashpw("'$password'".encode("utf-8"), bcrypt.gensalt()).decode("utf-8"))')
+vault secrets enable -version=1 kv
+vault kv put kv/docker/users htpasswd="$username:$password_hash"
 ```
 
 Then deploy the job using levant. You should be able to use `docker login` to access the new registry (which will be on the "registry" subdomain) after a few seconds.

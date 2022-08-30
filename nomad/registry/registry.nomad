@@ -41,6 +41,10 @@ job "registry" {
         ]
       }
 
+      vault {
+        policies = ["docker"]
+      }
+
       template {
         destination = "local/config.yml"
         data = <<-EOF
@@ -62,7 +66,9 @@ job "registry" {
       template {
         destination = "local/htpasswd"
         data = <<-EOF
-        [[ fileContents "htpasswd" ]]
+        {{- with secret "kv/docker/users" -}}
+        {{- .Data.htpasswd }}
+        {{ end -}}
         EOF
       }
 
