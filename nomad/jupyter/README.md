@@ -8,7 +8,6 @@ Create an empty configuration in Vault:
 
 ```bash
 vault secrets enable -version=1 kv
-vault policy write jupyter vault-policy.hcl
 vault kv put kv/jupyter/config password_hash=""
 ```
 

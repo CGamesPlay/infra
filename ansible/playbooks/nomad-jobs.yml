@@ -11,5 +11,9 @@
         vars:
           - job_dir: "../../{{ item | dirname }}"
           - job_name: "{{ item | dirname | basename | splitext | first }}"
+        # We need to ensure that the registry is loaded first because it is
+        # the dependency of many other jobs.
+        # NOTE: On GitHub the devs threaten to break the fileglob filter so
+        # that it doesn't match '*' in directory position.
         loop: "{{ ['nomad/registry/tasks.yml'] + ('nomad/*/tasks.yml' | fileglob | reject('search', '/registry/') | sort) }}"
         tags: always

@@ -1,4 +1,12 @@
 ---
+  - name: "{{ job_name }} vault policy"
+    hashivault_policy:
+      name: backup-cluster
+      rules: |
+        path "kv/backup/repository" {
+          capabilities = ["read"]
+        }
+
   - name: "{{ job_name }}"
     nomad_job:
       name: "{{ job_name }}"

@@ -45,6 +45,8 @@ WireGuard is used to secure communications between cluster nodes. This allows us
 1. Configure your environment. The requirements:
    - `HCLOUD_TOKEN` is the Hetzner Cloud token.
    - `ssh-add -L` needs to show at least one key (it will be used as the key for the created instances).
+   - `python --version` needs to be 3. `apt install python-is-python3` on Ubuntu.
+   - `pip3 install ansible hvac ansible-modules-hashivault`
 2. Run `robo production terraform-infra apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
 3. Run `robo production ansible` to apple the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
   - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
@@ -98,6 +100,10 @@ ssh server-master.node.consul
 ## Using Nomad
 
 Now that the server is set up, you'll want to start running some jobs on your new cluster. Your first two jobs should be [traefik](./nomad/traefik) and [whoami](./nomad/whoami.disabled), which will allow you to verify that everything is working properly. After that, you can do whatever you like. My [nomad directory](./nomad) has the jobspecs that I am using, which you can use as a baseline for your own.
+
+This repository uses Ansible to configure the jobs. Each directory in `nomad` has a `tasks.yml` which is treated as a list of Ansible tasks. Use `robo help deploy` to see how to deploy Nomad jobs using the system.
+
+To make working with Vault from Ansible easy, we use the [hashivault](https://terryhowe.github.io/ansible-modules-hashivault/modules/list_of_hashivault_modules.html) Ansible module.
 
 ### Note about storage
 

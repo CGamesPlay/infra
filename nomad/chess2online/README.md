@@ -12,7 +12,6 @@ Store the session secret in Vault:
 
 ```bash
 vault secrets enable -version=1 kv
-vault policy write chess2online vault-policy.hcl
 vault kv put kv/chess2online/config \
 	secret=$(openssl rand -base64 32) \
 ```

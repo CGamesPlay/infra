@@ -8,7 +8,6 @@ Store the session secret in Vault:
 
 ```bash
 vault secrets enable -version=1 kv
-vault policy write launa vault-policy.hcl
 vault kv put kv/launa/config \
     nextauthSecret=$(openssl rand -base64 32) \
     googleClientId=$GOOGLE_CLIENT_ID \

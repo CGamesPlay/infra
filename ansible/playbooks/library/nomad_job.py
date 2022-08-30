@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# This custom module uses levant to deploy jobs to Nomad. It is very basic
+# and has a few problems. The most serious of these is that it in general
+# will treat the presence of a Nomad job as proof that the job is
+# functioning correctly, which may not always be the case. The only
+# guarantee that the module really provides is that when it succeeds, the
+# jobspec will be up to date.
+
 from ansible.module_utils.basic import *
 import subprocess
 import os

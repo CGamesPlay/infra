@@ -1,5 +1,5 @@
 ---
-  - name: "registry vault policy"
+  - name: "{{ job_name }} vault policy"
     hashivault_policy:
       name: docker
       rules: |
