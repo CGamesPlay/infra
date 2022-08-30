@@ -124,6 +124,7 @@
         script: ../templates/vault/initial-setup.sh
         environment:
           DC: "{{ DC }}"
+          BASE_DOMAIN: "{{ traefik_domain }}"
         when:
           - vault_init_output is defined
 

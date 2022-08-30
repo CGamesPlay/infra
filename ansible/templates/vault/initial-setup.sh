@@ -18,7 +18,7 @@ vault write pki/config/urls \
     issuing_certificates="https://vault.consul.service:8200/v1/pki/ca" \
     crl_distribution_points="https://vault.consul.service:8200/v1/pki/crl"
 vault write pki/roles/server-${DC} \
-    allowed_domains=server.${DC}.consul,server.${DC}.nomad,server.${DC}.vault,service.consul \
+    allowed_domains=server.${DC}.consul,server.${DC}.nomad,server.${DC}.vault,service.consul,${BASE_DOMAIN} \
     allow_bare_domains=true \
     allow_subdomains=true \
     generate_lease=true \

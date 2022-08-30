@@ -87,7 +87,7 @@
               {{ '{{' }} end }}
               EOF
                   exec {
-                      command = "if systemctl is-active vault-agent; then service vault-agent reload; fi"
+                      command = "if systemctl is-active vault-agent; then service vault-agent restart; fi"
                   }
               }
 
@@ -102,7 +102,7 @@
                   perms = "0640"
                   error_on_missing_key = true
                   contents = <<EOF
-              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "alt_names=vault.{{ traefik_domain }}" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
               {{ '{{' }} .Data.certificate }}
               {{ '{{' }} end }}
               EOF
@@ -113,7 +113,7 @@
                   perms = "0640"
                   error_on_missing_key = true
                   contents = <<EOF
-              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=vault.service.consul" "alt_names=vault.{{ traefik_domain }}" "ip_sans=127.0.0.1,{{ wireguard_ip }}" "ttl=1440h"}}
               {{ '{{' }} .Data.private_key }}
               {{ '{{' }} end }}
               EOF
@@ -168,7 +168,7 @@
                   perms = "0640"
                   error_on_missing_key = true
                   contents = <<EOF
-              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=nomad.service.consul,server.{{ DC }}.nomad" "ip_sans=127.0.0.1" "ttl=1440h"}}
               {{ '{{' }} .Data.certificate }}
               {{ '{{' }} end }}
               EOF
@@ -179,7 +179,7 @@
                   perms = "0640"
                   error_on_missing_key = true
                   contents = <<EOF
-              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=localhost,nomad.service.consul" "ip_sans=127.0.0.1" "ttl=1440h"}}
+              {{ '{{' }} with secret "pki/issue/server-{{ DC }}" "common_name=server.{{ DC }}.consul" "alt_names=nomad.service.consul,server.{{ DC }}.nomad" "ip_sans=127.0.0.1" "ttl=1440h"}}
               {{ '{{' }} .Data.private_key }}
               {{ '{{' }} end }}
               EOF
