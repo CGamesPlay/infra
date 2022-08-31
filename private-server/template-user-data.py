@@ -1,10 +1,13 @@
 #!/usr/bin/python3
 
-import yaml
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import gzip
+import io
+import os
 import requests
 import subprocess
-import os
-import gzip
+import yaml
 
 def file(path):
     with open(path, 'r') as f:
@@ -79,32 +82,38 @@ aSgXPw6uF+0CyLOQ0haf2j6w1OB8ayEGSkTPER5rImCJf3MGw8IECGrErAd+
 -----END PGP PUBLIC KEY BLOCK-----
 """
 
+
 user_data = {
     'resize_rootfs': False,
     'growpart': {
         'mode': 'off',
     },
     'disable_root': True,
+    'ssh_pwauth': False,
+    'chpasswd': {
+        'expire': False,
+        'list': [],
+    },
     'user': {
         'name': 'ubuntu',
         'groups': ['adm', 'docker'],
         'ssh_authorized_keys': ssh_keys,
         'sudo': 'ALL=(ALL) NOPASSWD:ALL',
     },
+    'users': {
+        'root': {
+            'lock_passwd': True,
+        },
+    },
     'ntp': {
         'enabled': True,
     },
     'timezone': 'UTC',
     'package_update': True,
-    'packages': ['docker.io', 'hcloud-cli', 'python3', 'python3-pip', 'vault', 'consul', 'consul-template', 'nomad', 'wireguard', 'net-tools', 'unzip', 'direnv', 'jq'],
+    'packages': ['docker.io', 'hcloud-cli', 'python3', 'python3-pip', 'python3-venv', 'vault', 'consul', 'consul-template', 'nomad', 'wireguard', 'net-tools', 'unzip', 'direnv', 'jq'],
     'ca_certs': {
         'trusted': [ca_cert]
     },
-    'runcmd': [],
-    'write_files': [
-        write_file('/usr/local/bin/ps-auto-shutdown', file('ps-auto-shutdown'), '0755'),
-        write_file('/usr/local/bin/ps-resize-drive', file('ps-resize-drive'), '0755'),
-    ],
     'apt': {
       'sources': {
         'hashicorp': {
@@ -115,5 +124,7 @@ user_data = {
   },
 }
 
-print('#cloud-config')
-print(yaml.dump(user_data), end='')
+msg = MIMEMultipart()
+msg.attach(MIMEText(yaml.dump(user_data), 'cloud-config'))
+msg.attach(MIMEText(file('initial-setup.sh'), 'x-shellscript'))
+print(msg.as_string())

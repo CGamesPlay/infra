@@ -1,0 +1,36 @@
+---
+  - hosts: '*'
+    gather_facts: false
+    become: yes
+    tasks:
+      - name: install ansible systemd service
+        copy:
+          src: ansible.service
+          dest: /etc/systemd/system/ansible.service
+      - systemd:
+          daemon_reload: yes
+          name: ansible
+          enabled: true
+
+      - name: install utilities
+        copy:
+          src: "{{ item }}"
+          dest: "/usr/local/bin/{{ item }}"
+          mode: 0755
+        loop:
+          - ps-resize-drive
+
+      - name: configure dotfiles
+        become: yes
+        become_user: ubuntu
+        block:
+          - git:
+              repo: https://github.com/CGamesPlay/dotfiles
+              dest: /home/ubuntu/dotfiles
+            register: result
+          - shell:
+              cmd: ./bootstrap.sh
+              chdir: /home/ubuntu/dotfiles
+            environment:
+              HOME: /home/ubuntu
+            when: result.changed

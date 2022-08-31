@@ -69,8 +69,6 @@ aSgXPw6uF+0CyLOQ0haf2j6w1OB8ayEGSkTPER5rImCJf3MGw8IECGrErAd+
 
 drive_script = """
 set -ex
-echo COMMAND DID RUN
-lsblk
 mkdir -p /opt
 echo "UUID=$(lsblk /dev/sdb -no uuid) /opt ext4 discard,defaults,errors=remount-ro 0 2" >> /etc/fstab
 mount -a

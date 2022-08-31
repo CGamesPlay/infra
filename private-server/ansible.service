@@ -1,0 +1,13 @@
+[Unit]
+Description="Ansible - run ansible-pull on boot"
+Documentation=https://www.ansible.com/
+Wants=cloud-final.target
+After=cloud-final.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ansible/.venv/bin/ansible-pull -U https://github.com/CGamesPlay/infra -d /opt/ansible/infra -i localhost, private-server/site.yml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=cloud-init.target
