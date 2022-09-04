@@ -18,3 +18,19 @@
           path: /etc/fstab
           regexp: '/swapfile'
           line: '/swapfile swap swap defaults 0 0'
+
+      - name: lock down ssh
+        lineinfile:
+          path: /etc/ssh/sshd_config
+          regexp: '^#?PermitRootLogin'
+          line: 'PermitRootLogin no'
+        register: permit_root_login
+      - lineinfile:
+          path: /etc/ssh/sshd_config
+          regexp: '^#?PasswordAuthentication'
+          line: 'PasswordAuthentication no'
+        register: password_authentication
+      - systemd:
+          name: sshd
+          state: reloaded
+        when: permit_root_login.changed or password_authentication.changed
