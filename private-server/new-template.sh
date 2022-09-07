@@ -179,6 +179,14 @@ EOF
 
 echo 'HCLOUD_TOKEN=%HCLOUD_TOKEN%' >> /mnt/etc/self-destruct.env
 
+cat <<'EOF' /mnt/var/lib/cloud/scripts/per-boot
+#!/bin/bash
+set -xueo pipefail
+sgdisk -e -d 4 -N 4 /dev/sda
+partprobe
+resize2fs /dev/sda4
+EOF
+
 chroot /mnt /bin/bash -s <<EXIT_CHROOT
 set -uexo pipefail
 update-grub

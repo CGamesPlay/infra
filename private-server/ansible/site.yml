@@ -3,19 +3,25 @@
     gather_facts: false
     become: yes
     tasks:
-      - copy:
-          src: hcloud-self-destruct
-          dest: /usr/local/sbin/hcloud-self-destruct
-          mode: 0755
       - name: install self-destruct service
         copy:
           src: self-destruct.service
           dest: /etc/systemd/system/self-destruct.service
+      - copy:
+          src: hcloud-self-destruct
+          dest: /usr/local/sbin/hcloud-self-destruct
+          mode: 0755
       - systemd:
           daemon_reload: yes
           name: self-destruct
           enabled: true
           state: started
+
+      - name: install ephemeral disk resizer
+        copy:
+          src: resize-ephemeral-disk.sh
+          dest: /var/lib/cloud/scripts/per-boot
+          mode: 0755
 
       - name: install ansible systemd service
         copy:
