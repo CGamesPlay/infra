@@ -32,15 +32,28 @@
           name: ansible
           enabled: true
 
-      - name: install utilities
+      - name: install auto-shutdown service
         copy:
-          src: "{{ item }}"
-          dest: "/usr/local/bin/{{ item }}"
+          src: ps-auto-shutdown
+          dest: /usr/local/bin/ps-auto-shutdown
           mode: 0755
-        loop:
-          - ps-resize-drive
+        register: auto_shutdown_bin
+      - copy:
+          src: auto-shutdown.service
+          dest: /etc/systemd/system/auto-shutdown.service
+      - systemd:
+          daemon_reload: yes
+          name: auto-shutdown
+          enabled: true
+          state: started
+        register: auto_shutdown_unit
+      - systemd:
+          name: auto-shutdown
+          state: restarted
+        when: not auto_shutdown_unit.changed and auto_shutdown_bin.changed
 
       - name: configure dotfiles
+        when: no
         become: yes
         become_user: ubuntu
         block:

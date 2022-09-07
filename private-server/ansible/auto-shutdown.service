@@ -1,0 +1,14 @@
+[Unit]
+Description="Automatic Shutdown"
+Documentation=https://github.com/CGamesPlay/infra
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/ps-auto-shutdown daemon
+KillMode=process
+KillSignal=SIGTERM
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
