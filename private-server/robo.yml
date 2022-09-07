@@ -1,4 +1,6 @@
 new-template:
-  summary: Create a new machine from a stock image
-  command: |
-    ./template-user-data.py | hcloud server create --image ubuntu-22.04 --type cx21 --name server-template --datacenter nbg1-dc3 --user-data-from-file -
+  summary: Create a new, bootable volume and corresponding image to boot from it.
+  examples:
+    - description: Create a bootable volume + snapshot named myserver using the named ssh key (from hcloud ssh-key list).
+      command: robo new-template myserver ssh-key-id
+  command: cd {{ .robo.path }} && exec ./new-template.sh "$@"
