@@ -3,6 +3,20 @@
     gather_facts: false
     become: yes
     tasks:
+      - copy:
+          src: hcloud-self-destruct
+          dest: /usr/local/sbin/hcloud-self-destruct
+          mode: 0755
+      - name: install self-destruct service
+        copy:
+          src: self-destruct.service
+          dest: /etc/systemd/system/self-destruct.service
+      - systemd:
+          daemon_reload: yes
+          name: self-destruct
+          enabled: true
+          state: started
+
       - name: install ansible systemd service
         copy:
           src: ansible.service

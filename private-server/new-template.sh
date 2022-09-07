@@ -30,11 +30,11 @@ ipv4=$(echo "$output" | grep IPv4 | cut -d: -f 2 | xargs)
 echo IP "$ipv4"
 hcloud volume create --name "$name" --size "$initial_size" --server "$name"
 output=$(hcloud server enable-rescue "$name" --ssh-key="$ssh_key")
-hcloud server reboot "$name"
+hcloud server poweron "$name"
 echo 'Wait for SSH'
 timeout 120 sh -c 'until nc -z $0 22; do sleep 1; done' $ipv4
 sleep 5
-ssh -l root -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $ipv4 'bash -s' <<'END_SCRIPT'
+cat <<'END_SCRIPT' | sed -e "s/%HCLOUD_TOKEN%/$(echo $HCLOUD_TOKEN | sed 's/\//\\\//g')/g" | ssh -l root -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $ipv4 -- 'bash -s'
 set -uexo pipefail
 
 # Copy existing install to the new volume
@@ -139,9 +139,54 @@ cloud_final_modules:
  - power-state-change
 EOF
 
+cat <<'EOF' >/mnt/usr/local/sbin/hcloud-self-destruct
+#!/bin/sh
+# Immediately destroy this server
+set -e
+if [ "$(systemctl show --property=Job poweroff.target)" = "Job=" ]; then
+    echo "Aborting self destruct because system is not powering off" >&2
+    exit 0
+fi
+
+server=$(cat /var/run/cloud-init/.instance-id)
+# Just allow the system to cool down
+sleep 5
+sync
+hcloud server delete $server
+EOF
+chmod +x /mnt/usr/local/sbin/hcloud-self-destruct
+
+cat <<'EOF' >/mnt/etc/systemd/system/self-destruct.service
+[Unit]
+Description=self destruct on poweroff
+
+# We want to stop this service pretty late in the shutdown process, but
+# before the network goes down. By setting Before=network.target, our self
+# destruct will only happen after everything which is After=network.target.
+Before=network.target user.slice machine.slice
+# But the self destruct requires the network to actually be active.
+After=systemd-networkd.service nss-lookup.target
+
+[Service]
+EnvironmentFile=-/etc/self-destruct.env
+ExecStop=/usr/local/sbin/hcloud-self-destruct --force
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo 'HCLOUD_TOKEN=%HCLOUD_TOKEN%' >> /mnt/etc/self-destruct.env
+
 chroot /mnt /bin/bash -s <<EXIT_CHROOT
+set -uexo pipefail
 update-grub
 grub-install /dev/sda
+
+apt-get update
+apt-get install -y hcloud-cli
+systemctl enable self-destruct.service
 EXIT_CHROOT
 END_SCRIPT
 
