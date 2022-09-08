@@ -17,4 +17,4 @@ PyYAML==6.0
 resolvelib==0.8.1
 EOF
 .venv/bin/pip3 install -r requirements.txt
-./.venv/bin/ansible-pull -U https://github.com/CGamesPlay/infra -d /opt/ansible/infra -i localhost, private-server/site.yml
+./.venv/bin/ansible-pull -U https://github.com/CGamesPlay/infra -d /opt/ansible/infra -i localhost, private-server/ansible/site.yml

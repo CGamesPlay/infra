@@ -1,6 +1,6 @@
-new-template:
+create-bootable-volume:
   summary: Create a new, bootable volume and corresponding image to boot from it.
   examples:
     - description: Create a bootable volume + snapshot named myserver using the named ssh key (from hcloud ssh-key list).
-      command: robo new-template myserver ssh-key-id
-  command: cd {{ .robo.path }} && exec ./new-template.sh "$@"
+      command: robo create-bootable-volume myserver ssh-key-id
+  command: cd {{ .robo.path }} && exec ./create-bootable-volume.sh "$@"

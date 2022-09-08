@@ -84,10 +84,6 @@ aSgXPw6uF+0CyLOQ0haf2j6w1OB8ayEGSkTPER5rImCJf3MGw8IECGrErAd+
 
 
 user_data = {
-    'resize_rootfs': False,
-    'growpart': {
-        'mode': 'off',
-    },
     'disable_root': True,
     'ssh_pwauth': False,
     'chpasswd': {
@@ -115,16 +111,22 @@ user_data = {
         'trusted': [ca_cert]
     },
     'apt': {
-      'sources': {
-        'hashicorp': {
-          'source': 'deb https://apt.releases.hashicorp.com $RELEASE main',
-          'key': hashicorp_key,
-      },
+        'sources': {
+            'hashicorp': {
+                'source': 'deb https://apt.releases.hashicorp.com $RELEASE main',
+                'key': hashicorp_key,
+            },
+        },
     },
-  },
+    'write_files': [
+        write_file("/etc/self-destruct.env", f"HCLOUD_TOKEN={os.environ['HCLOUD_TOKEN']}", "0600"),
+    ],
+    'power_state': {
+        'mode': 'poweroff',
+    },
 }
 
 msg = MIMEMultipart()
 msg.attach(MIMEText(yaml.dump(user_data), 'cloud-config'))
-msg.attach(MIMEText(file('initial-setup.sh'), 'x-shellscript'))
+msg.attach(MIMEText(file('ansible-setup.sh'), 'x-shellscript'))
 print(msg.as_string())

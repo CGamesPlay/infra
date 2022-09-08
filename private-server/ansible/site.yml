@@ -20,7 +20,7 @@
       - name: install ephemeral disk resizer
         copy:
           src: resize-ephemeral-disk.sh
-          dest: /var/lib/cloud/scripts/per-boot
+          dest: /var/lib/cloud/scripts/per-boot/resize-ephemeral-disk.sh
           mode: 0755
 
       - name: install ansible systemd service
