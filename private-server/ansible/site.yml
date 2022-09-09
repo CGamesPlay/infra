@@ -53,7 +53,6 @@
         when: not auto_shutdown_unit.changed and auto_shutdown_bin.changed
 
       - name: configure dotfiles
-        when: no
         become: yes
         become_user: ubuntu
         block:
