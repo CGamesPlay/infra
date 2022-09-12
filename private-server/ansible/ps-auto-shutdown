@@ -9,7 +9,7 @@ import signal
 import sys
 
 keepalive_file = f'/tmp/auto-shutdown-keepalive-{os.getpid()}'
-idle_timeout = timedelta(minutes=30)
+idle_timeout = timedelta(hours=2)
 
 def most_recent_file(pattern):
     paths = glob(pattern)

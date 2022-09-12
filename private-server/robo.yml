@@ -4,3 +4,6 @@ create-bootable-volume:
     - description: Create a bootable volume + snapshot named myserver using the named ssh key (from hcloud ssh-key list).
       command: robo create-bootable-volume myserver ssh-key-id
   command: cd {{ .robo.path }} && exec ./create-bootable-volume.sh "$@"
+
+ansible-local:
+  command: ansible-playbook -i localhost, --connection=local ansible/site.yml "$@"
