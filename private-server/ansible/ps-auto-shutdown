@@ -1,28 +1,50 @@
 #!/usr/bin/python3
-import subprocess
-import argparse
-from glob import glob
-import os
 from datetime import datetime, timedelta
-import time
+from glob import glob
+import argparse
+import os
+import re
 import signal
+import subprocess
 import sys
+import time
 
 keepalive_file = f'/tmp/auto-shutdown-keepalive-{os.getpid()}'
 idle_timeout = timedelta(hours=2)
 
-def most_recent_file(pattern):
+def file_atimes(pattern):
     paths = glob(pattern)
     atime = lambda path: datetime.fromtimestamp(os.stat(path).st_atime)
     if len(paths) == 0:
-        return (None, None)
-    return max(((x, atime(x)) for x in paths), key=lambda x: x[1])
+        return ()
+    return list((x, atime(x)) for x in paths)
 
 def most_active_pty():
-    return most_recent_file('/dev/pts/*')
+    return file_atimes('/dev/pts/*')
 
 def keepalive_time():
-    return most_recent_file('/tmp/auto-shutdown-keepalive-*')
+    return file_atimes('/tmp/auto-shutdown-keepalive-*')
+
+def xprintidle(user, display):
+    "Return the time of last interaction for the given display, or None"
+    env = os.environ.copy()
+    env['DISPLAY'] = display
+    # Janky but I don't want to install the getent dependency
+    env['XAUTHORITY'] = "/root/.Xauthority" if user == "root" else f"/home/{user}/.Xauthority"
+    try:
+        rc = subprocess.run(('xprintidle'), timeout=1, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        if rc.returncode != 0:
+            return None
+    except(subprocess.TimeoutExpired):
+        # This happens when xrdp can't reach the client but it's still connected.
+        return datetime.now()
+    idle = int(rc.stdout.decode('utf-8'))
+    return datetime.now() - timedelta(milliseconds=idle)
+
+def x_time():
+    ps = subprocess.check_output(('ps', '-A', 'ue')).decode('utf-8')
+    displays = set(re.findall(r'^(\w+).*(?<=\bDISPLAY=)(:\d+(?:\.\d+)?)\b', ps, flags=re.M))
+    return list(filter(lambda x: x[1] is not None, ((d[1], xprintidle(d[0], d[1])) for d in displays)))
 
 def touch_keepalive(value):
     if value is None:
@@ -36,31 +58,36 @@ def touch_keepalive(value):
 
 def get_activity():
     activity = {}
-    sources = [most_active_pty, keepalive_time]
-    for f in sources:
-        name, timestamp = f()
-        if timestamp is not None:
-            activity[name] = timestamp
+    sources = [most_active_pty, keepalive_time, x_time]
+    for source in sources:
+        files = source()
+        if files is None:
+            continue
+        for f in files:
+            name, timestamp = f
+            if timestamp is not None:
+                activity[name] = timestamp
     return activity
 
 def shutdown():
     subprocess.run('poweroff', check=True)
 
 def status(args):
-    now = datetime.now()
     activity = get_activity()
+    now = datetime.now()
     print('Last activity:')
     for key, value in activity.items():
         age = now - value
-        print(f'{key}  \t{age} ago')
+        print(f'{key:30}  {age} ago')
     overall = max((x[1] for x in activity.items()))
     shutdown_time = overall + idle_timeout
+    print('')
     print(f'Machine will auto-shutdown at {shutdown_time} (in {shutdown_time - now})')
 
 def daemon(args):
     while True:
-        now = datetime.now()
         last_activity = max((x[1] for x in get_activity().items()))
+        now = datetime.now()
         shutdown_time = last_activity + idle_timeout
         if now >= shutdown_time:
             shutdown()
