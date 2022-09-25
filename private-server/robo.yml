@@ -1,9 +1,21 @@
 create-bootable-volume:
   summary: Create a new, bootable volume and corresponding image to boot from it.
   examples:
-    - description: Create a bootable volume + snapshot named myserver using the named ssh key (from hcloud ssh-key list).
-      command: robo create-bootable-volume myserver ssh-key-id
-  command: cd {{ .robo.path }} && exec ./create-bootable-volume.sh "$@"
+    - description: Create a bootable volume + snapshot named myserver.
+      command: robo create-bootable-volume myserver
+  command: cd {{ .robo.path }} && exec bash -c './private-server.py --user-data <(./initial-boot-user-data.py) --username ubuntu --name "$@"' "" "$@"
 
 ansible-local:
   command: ansible-playbook -i localhost, --connection=local ansible/site.yml "$@"
+
+inventory:
+  summary: show all assets in Hetzner
+  command: |
+    echo Snapshots
+    hcloud image list -t snapshot
+    echo
+    echo Volumes
+    hcloud volume list
+    echo
+    echo Servers
+    hcloud server list
