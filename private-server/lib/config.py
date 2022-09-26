@@ -38,6 +38,11 @@ args.add(
     help="image to use to create the assets (see hcloud image list)",
 )
 args.add(
+    "--encrypt",
+    action="store_true",
+    help="encrypt the volume and configure the snapshot to decrypt it on boot",
+)
+args.add(
     "--dry-run",
     action="store_true",
     help="print the rescue-mode script required to perform the operation without actually doing it",

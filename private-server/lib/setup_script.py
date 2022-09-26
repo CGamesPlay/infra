@@ -8,21 +8,58 @@ def get_script(options):
     script.print_section(
         """
         # Copy existing install to the new volume
+        e2fsck -fp /dev/sda1
         cp /dev/sda1 /dev/sdb
-        e2fsck -fp /dev/sdb
+        tune2fs -U random /dev/sdb
         resize2fs /dev/sdb
+        """
+    )
 
+    if options.encrypt:
+        # Resize the filesystem on the existing install to reuse it
+        # later.
+        script.print("resize2fs /dev/sda1 3G")
+
+        # The target partition scheme is:
+        # EFI system    1 MiB
+        # BIOS boot     256 MiB
+        # 1st stage     4 GiB
+        # Swap          4 GiB
+        # Ephemeral     1 GiB (resized on boot)
+        partitions = "-d 3 -n 0:0:+4G -t 0:8300 -c 0:stage1 -n 0:0:+4G -t 0:8200 -c 0:swap -n 0:0:+1G -t 0:8300 -c 0:ephemeral"
+    else:
+        # The target partition scheme is:
+        # EFI system    1 MiB
+        # BIOS boot     256 MiB
+        # Swap          4 GiB
+        # Ephemeral     1 GiB (resized on boot)
+        partitions = (
+            "-d 3 -n 0:0:+4G -t 0:8200 -c 0:swap -n 0:0:+1G -t 0:8300 -c 0:ephemeral"
+        )
+
+    script.print_section(
+        f"""
         # Partition the original disk
         sgdisk /dev/sda -s
-        sgdisk /dev/sda -d 3 -n 0:0:+4G -t 0:8200 -c 0:swap -n 0:0:+1M -t 0:8300 -c 0:ephemeral
+        sgdisk /dev/sda {partitions}
+        sleep 2 # Wait for udev to update
 
         # Format partitions
-        mkswap /dev/sda3
-        mkfs.ext4 /dev/sda4
+        mkswap /dev/disk/by-partlabel/swap
+        mkfs.ext4 /dev/disk/by-partlabel/ephemeral
+        """
+    )
 
+    if options.encrypt:
+        script.write(get_stage1(options))
+
+    script.print_section(
+        """
         # Mount new disk
         mount /dev/sdb /mnt
-        for i in dev dev/pts sys tmp run proc; do mount --bind /$i /mnt/$i; done
+        for i in dev dev/pts sys tmp run proc; do
+            mount --bind /$i /mnt/$i
+        done
         mkdir /mnt/media/ephemeral
         chmod 01777 /mnt/media/ephemeral
 
@@ -40,9 +77,7 @@ def get_script(options):
         #
         # <file system> <mount point>   <type>  <options>       <dump>  <pass>
         UUID=$(lsblk -no UUID /dev/sdb) / ext4 defaults,errors=remount-ro 0 1
-        /dev/sda2 /boot/efi vfat defaults 0 2
-        /dev/sda3 none swap sw 0 0
-        /dev/sda4 /media/ephemeral ext4 defaults,errors=remount-ro 0 2
+        PARTLABEL=ephemeral /media/ephemeral ext4 defaults,errors=remount-ro 0 2
         EOF
 
         cat <<EOF >/etc/cloud/cloud.cfg.d/91-private-server.cfg
@@ -123,13 +158,101 @@ def get_script(options):
         partprobe
         resize2fs /dev/sda4
         EOF
+        """
+    )
 
-        # Update the bootloader
-        update-grub
-        grub-install /dev/sda
+    if not options.encrypt:
+        script.print_section(
+            """
+            # Update the bootloader
+            update-grub
+            grub-install /dev/sda
+            """
+        )
 
+    script.print_section(
+        """
         EXIT_CHROOT
         sync
         """
     )
+    return script.getvalue()
+
+
+def get_stage1(options):
+    script = ScriptIO()
+    script.print_section(
+        """
+        # Mount new disk
+        resize2fs /dev/disk/by-partlabel/stage1
+        mount /dev/disk/by-partlabel/stage1 /mnt
+        for i in dev dev/pts sys tmp run proc; do
+            mount --bind /$i /mnt/$i
+        done
+
+        chroot /mnt /bin/bash -s <<'EXIT_CHROOT'
+        set -uexo pipefail
+
+        # Set up fstab
+        cat <<EOF > /etc/fstab
+        # /etc/fstab: static file system information.
+        #
+        # Use 'blkid' to print the universally unique identifier for a
+        # device; this may be used with UUID= as a more robust way to
+        # name devices that works even if disks are added and removed.
+        # See fstab(5).
+        #
+        # <file system> <mount point>   <type>  <options>       <dump>  <pass>
+        PARTLABEL=stage1 / ext4 defaults,errors=remount-ro 0 1
+        EOF
+
+        cat <<EOF >/etc/cloud/cloud.cfg.d/91-private-server.cfg
+        # Private Server stage1 cloud-config
+        # Cloud-init is mostly disabled, but some modules still run.
+        preserve_hostname: true
+        EOF
+
+        systemctl disable cloud-init cloud-config cloud-final
+        systemctl disable sshd ssh
+        hostnamectl set-hostname stage1
+
+        # Update the bootloader
+        sed -ie '/GRUB_CMDLINE_LINUX_DEFAULT/s/="/="systemd.gpt_auto=false /' /etc/default/grub
+        update-grub
+        grub-install /dev/sda
+
+        echo 'root:password' | chpasswd
+
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -yq
+        apt-get install -yq kexec-tools
+
+        cat <<EOF > /usr/local/bin/ps-kexec
+        #!/bin/sh
+        mount /dev/sdb /mnt
+        kexec -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initrd.img --append="root=/dev/sdb ro consoleblank=0 systemd.show_status=true console=tty1 console=ttyS0"
+        systemctl kexec
+        EOF
+        chmod +x /usr/local/bin/ps-kexec
+
+        cat <<EOF > /etc/systemd/system/ps-kexec.service
+        [Unit]
+        Description="Stage1 Kexec"
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/ps-kexec
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        systemctl enable ps-kexec
+
+        EXIT_CHROOT
+
+        umount /mnt/dev/pts /mnt/dev /mnt/sys /mnt/tmp /mnt/run /mnt/proc /mnt
+        """
+    )
+
     return script.getvalue()
