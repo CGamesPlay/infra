@@ -38,11 +38,6 @@ args.add(
     help="image to use to create the assets (see hcloud image list)",
 )
 args.add(
-    "--encrypt",
-    action="store_true",
-    help="encrypt the volume and configure the snapshot to decrypt it on boot",
-)
-args.add(
     "--dry-run",
     action="store_true",
     help="print the rescue-mode script required to perform the operation without actually doing it",
@@ -97,4 +92,24 @@ volume_group.add(
     "--ssh-key",
     env_var="PS_SSH_KEY",
     help="name of SSH key to use during initial boot (see hcloud ssh-key list)",
+)
+
+encryption_group = args.add_argument_group(
+    "Encryption options", "Configuration for encryption."
+)
+encryption_group.add(
+    "--encrypt",
+    action="store_true",
+    env_var="PS_ENCRYPT",
+    help="encrypt the volume and configure the snapshot to decrypt it on boot",
+)
+encryption_group.add(
+    "--keyfile",
+    env_var="PS_KEYFILE",
+    help="keyfile to use as the volume encryption key",
+)
+encryption_group.add(
+    "--keyscript",
+    env_var="PS_KEYSCRIPT",
+    help="key script to install in stage1 to fetch the key",
 )

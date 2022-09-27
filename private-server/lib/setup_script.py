@@ -1,3 +1,6 @@
+import pathlib
+import base64
+
 from .dsl import ScriptIO
 
 
@@ -5,13 +8,29 @@ def get_script(options):
     script = ScriptIO()
     script.print("set -uexo pipefail")
 
+    root_device = "/dev/mapper/sdb_crypt" if options.encrypt else "/dev/sdb"
+    if options.keyfile:
+        keyfile = pathlib.Path(options.keyfile).read_bytes()
+        keyfile_b64 = base64.b64encode(keyfile).decode("utf-8")
+
+    if options.encrypt:
+        script.print_section(
+            f"""
+            # Set up the encrypted volume
+            echo "{keyfile_b64}" | base64 -d > /run/keyfile
+            chmod 0600 /run/keyfile
+            cryptsetup luksFormat --type luks2 /dev/sdb /run/keyfile
+            cryptsetup open --key-file=/run/keyfile /dev/sdb sdb_crypt
+            """
+        )
+
     script.print_section(
-        """
+        f"""
         # Copy existing install to the new volume
         e2fsck -fp /dev/sda1
-        cp /dev/sda1 /dev/sdb
-        tune2fs -U random /dev/sdb
-        resize2fs /dev/sdb
+        cp /dev/sda1 {root_device}
+        tune2fs -U random {root_device}
+        resize2fs {root_device}
         """
     )
 
@@ -26,7 +45,11 @@ def get_script(options):
         # 1st stage     4 GiB
         # Swap          4 GiB
         # Ephemeral     1 GiB (resized on boot)
-        partitions = "-d 3 -n 0:0:+4G -t 0:8300 -c 0:stage1 -n 0:0:+4G -t 0:8200 -c 0:swap -n 0:0:+1G -t 0:8300 -c 0:ephemeral"
+        partitions = "-d 3 -n 0:0:+4G -t 0:8300 -c 0:stage1 -n 0:0:+4G -t 0:8309 -c 0:swap -n 0:0:+1G -t 0:8309 -c 0:ephemeral"
+        fstab = [
+            "/dev/mapper/ephemeral /media/ephemeral ext4 defaults,errors=remount-ro 0 2",
+            "/dev/mapper/swap none swap",
+        ]
     else:
         # The target partition scheme is:
         # EFI system    1 MiB
@@ -36,6 +59,9 @@ def get_script(options):
         partitions = (
             "-d 3 -n 0:0:+4G -t 0:8200 -c 0:swap -n 0:0:+1G -t 0:8300 -c 0:ephemeral"
         )
+        fstab = [
+            "PARTLABEL=ephemeral /media/ephemeral ext4 defaults,errors=remount-ro 0 2"
+        ]
 
     script.print_section(
         f"""
@@ -43,22 +69,27 @@ def get_script(options):
         sgdisk /dev/sda -s
         sgdisk /dev/sda {partitions}
         sleep 2 # Wait for udev to update
-
-        # Format partitions
-        mkswap /dev/disk/by-partlabel/swap
-        mkfs.ext4 /dev/disk/by-partlabel/ephemeral
         """
     )
+
+    if not options.encrypt:
+        script.print_section(
+            """
+            # Format partitions
+            mkswap /dev/disk/by-partlabel/swap
+            mkfs.ext4 /dev/disk/by-partlabel/ephemeral
+            """
+        )
 
     if options.encrypt:
         script.write(get_stage1(options))
 
     script.print_section(
-        """
+        f"""
         # Mount new disk
-        mount /dev/sdb /mnt
-        for i in dev dev/pts sys tmp run proc; do
-            mount --bind /$i /mnt/$i
+        mount {root_device} /mnt
+        for i in dev sys tmp run proc; do
+            mount --rbind /$i /mnt/$i
         done
         mkdir /mnt/media/ephemeral
         chmod 01777 /mnt/media/ephemeral
@@ -76,10 +107,16 @@ def get_script(options):
         # See fstab(5).
         #
         # <file system> <mount point>   <type>  <options>       <dump>  <pass>
-        UUID=$(lsblk -no UUID /dev/sdb) / ext4 defaults,errors=remount-ro 0 1
-        PARTLABEL=ephemeral /media/ephemeral ext4 defaults,errors=remount-ro 0 2
+        UUID=$(lsblk -no UUID {root_device}) / ext4 defaults,errors=remount-ro 0 1
         EOF
+        """
+    )
 
+    for line in fstab:
+        script.print(f"echo '{line}' >> /etc/fstab")
+
+    script.print_section(
+        f"""
         cat <<EOF >/etc/cloud/cloud.cfg.d/91-private-server.cfg
         # Private Server cloud-config
         # This script disables most per-instance cloud-init modules, since
@@ -141,7 +178,7 @@ def get_script(options):
          - scripts-vendor
          - scripts-per-once
          - scripts-per-boot
-         - [ scripts-per-instance, once ]
+         - scripts-per-instance
          - [ scripts-user, once ]
          - [ ssh-authkey-fingerprints, once ]
          - [ keys-to-console, once ]
@@ -150,18 +187,63 @@ def get_script(options):
          - final-message
          - power-state-change
         EOF
-
-        cat <<'EOF' >/var/lib/cloud/scripts/per-boot/resize-ephemeral-disk.sh
-        #!/bin/bash
-        set -xueo pipefail
-        sgdisk -e -d 4 -N 4 /dev/sda
-        partprobe
-        resize2fs /dev/sda4
-        EOF
         """
     )
 
-    if not options.encrypt:
+    if options.encrypt:
+        script.print_section(
+            """
+            cat <<'EOF' >/var/lib/cloud/scripts/per-instance/resize-ephemeral-disk.sh
+            #!/bin/bash
+            set -xueo pipefail
+            sgdisk /dev/sda -e
+            sgdisk /dev/sda -d 5 -n 0:0:0 -t 0:8309 -c 0:ephemeral
+            partprobe
+            cryptsetup resize ephemeral
+            # The above command will attempt to unmount the filesystem
+            mount /dev/mapper/ephemeral || true
+            resize2fs /dev/mapper/ephemeral
+            EOF
+            chmod +x /var/lib/cloud/scripts/per-instance/resize-ephemeral-disk.sh
+            """
+        )
+    else:
+        script.print_section(
+            """
+            cat <<'EOF' >/var/lib/cloud/scripts/per-instance/resize-ephemeral-disk.sh
+            #!/bin/bash
+            set -xueo pipefail
+            sgdisk /dev/sda -e -d 4 -n 0:0:0 -t 0:8300 -c 0:ephemeral
+            partprobe
+            resize2fs /dev/sda4
+            EOF
+            chmod +x /var/lib/cloud/scripts/per-instance/resize-ephemeral-disk.sh
+            """
+        )
+
+    if options.encrypt:
+        script.print_section(
+            """
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -yq
+            apt-get install -yq cryptsetup-initramfs
+
+            mkdir -p /etc/luks
+            chmod 0700 /etc/luks
+            cp /run/keyfile /etc/luks/root.keyfile
+            echo "UMASK=0077" >> /etc/initramfs-tools/initramfs.conf
+            echo "KEYFILE_PATTERN=/etc/luks/*.keyfile" >> /etc/cryptsetup-initramfs/conf-hook
+            echo 'sdb_crypt /dev/sdb /etc/luks/root.keyfile luks,discard' >> /etc/crypttab
+            cat <<EOF > /etc/crypttab
+            # <target name> <source device>         <key file>      <options>
+            sdb_crypt /dev/sdb /etc/luks/root.keyfile luks,discard
+            ephemeral PARTLABEL=ephemeral /etc/luks/root.keyfile luks,discard,tmp
+            swap PARTLABEL=swap /etc/luks/root.keyfile luks,discard,swap
+            EOF
+            update-initramfs -u -k all
+            """
+        )
+    else:
         script.print_section(
             """
             # Update the bootloader
@@ -181,19 +263,24 @@ def get_script(options):
 
 def get_stage1(options):
     script = ScriptIO()
+
     script.print_section(
         """
         # Mount new disk
         resize2fs /dev/disk/by-partlabel/stage1
         mount /dev/disk/by-partlabel/stage1 /mnt
-        for i in dev dev/pts sys tmp run proc; do
-            mount --bind /$i /mnt/$i
+        for i in dev sys tmp run proc; do
+            mount --rbind /$i /mnt/$i
         done
 
         chroot /mnt /bin/bash -s <<'EXIT_CHROOT'
         set -uexo pipefail
 
-        # Set up fstab
+        mkdir -p /etc/luks
+        chmod 0700 /etc/luks
+        cp /run/keyfile /etc/luks/root.keyfile
+
+        # Stage1 fstab
         cat <<EOF > /etc/fstab
         # /etc/fstab: static file system information.
         #
@@ -214,14 +301,27 @@ def get_stage1(options):
 
         systemctl disable cloud-init cloud-config cloud-final
         systemctl disable sshd ssh
-        hostnamectl set-hostname stage1
+        echo stage1 > /etc/hostname
 
         # Update the bootloader
-        sed -ie '/GRUB_CMDLINE_LINUX_DEFAULT/s/="/="systemd.gpt_auto=false /' /etc/default/grub
+        sed -ie '/GRUB_GFXMODE/s/.*/GRUB_GFXPAYLOAD_LINUX=1024x768x24/' /etc/default/grub
         update-grub
         grub-install /dev/sda
 
-        echo 'root:password' | chpasswd
+        passwd -d root
+
+        # Set up the motd
+        chmod -x /etc/update-motd.d/*
+        cat <<EOF > /etc/motd
+
+        Welcome to the stage1 rescue system. To continue to normal boot,
+        populate the file /run/keyfile with the decryption key, then run
+        ps-kexec.
+
+          echo -n 'secretpassword' > /run/keyfile
+          ps-kexec
+
+        EOF
 
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -yq
@@ -229,29 +329,44 @@ def get_stage1(options):
 
         cat <<EOF > /usr/local/bin/ps-kexec
         #!/bin/sh
-        mount /dev/sdb /mnt
-        kexec -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initrd.img --append="root=/dev/sdb ro consoleblank=0 systemd.show_status=true console=tty1 console=ttyS0"
+        cryptsetup open --key-file=/run/keyfile /dev/sdb sdb_crypt
+        mount /dev/mapper/sdb_crypt /mnt -o ro
+        kexec -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initrd.img --append="root=/dev/mapper/sdb_crypt ro consoleblank=0 systemd.show_status=true"
         systemctl kexec
         EOF
         chmod +x /usr/local/bin/ps-kexec
+        """
+    )
 
-        cat <<EOF > /etc/systemd/system/ps-kexec.service
-        [Unit]
-        Description="Stage1 Kexec"
+    if options.keyscript is not None:
+        keyscript = pathlib.Path(options.keyscript).read_text().strip()
+        script.print(
+            f"cat <<'KEYSCRIPT_END' > /usr/local/bin/keyscript\n{keyscript}\nKEYSCRIPT_END\nchmod +x /usr/local/bin/keyscript"
+        )
+        script.print_section(
+            """
+            cat <<EOF > /etc/systemd/system/ps-kexec.service
+            [Unit]
+            Description="Stage1 Kexec"
 
-        [Service]
-        Type=oneshot
-        ExecStart=/usr/local/bin/ps-kexec
-        RemainAfterExit=yes
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/keyscript
+            ExecStart=/usr/local/bin/ps-kexec
+            RemainAfterExit=yes
 
-        [Install]
-        WantedBy=multi-user.target
-        EOF
-        systemctl enable ps-kexec
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            systemctl enable ps-kexec
+            """
+        )
 
+    script.print_section(
+        """
         EXIT_CHROOT
 
-        umount /mnt/dev/pts /mnt/dev /mnt/sys /mnt/tmp /mnt/run /mnt/proc /mnt
+        umount -Rl /mnt
         """
     )
 

@@ -5,6 +5,16 @@ create-bootable-volume:
       command: robo create-bootable-volume myserver
   command: cd {{ .robo.path }} && exec bash -c './private-server.py --user-data <(./initial-boot-user-data.py) --username ubuntu --name "$@"' "" "$@"
 
+create-encrypted-volume:
+  summary: Create a new, encrypted, bootable volume and corresponding image to boot from it.
+  examples:
+    - description: Create a bootable volume + snapshot named myserver.
+      command: robo create-bootable-volume myserver
+  command: |
+    cd {{ .robo.path }}
+    openssl rand 64 | base64 -w 0 > keyfile
+    exec bash -c './private-server.py --encrypt --keyfile keyfile --keyscript <(./gen-keyscript.sh) --user-data <(./initial-boot-user-data.py) --username ubuntu --name "$@"' "" "$@"
+
 ansible-local:
   command: ansible-playbook -i localhost, --connection=local ansible/site.yml "$@"
 

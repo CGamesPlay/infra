@@ -166,7 +166,7 @@ class DSL:
     def shutdown(self, server):
         action = server.shutdown()
         action.wait_until_finished()
-        for i in range(10):
+        for i in range(20):
             try:
                 server = self.hcloud.servers.get_by_id(server.id)
                 if server.status == "off":

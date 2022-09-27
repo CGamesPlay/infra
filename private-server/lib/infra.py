@@ -33,7 +33,10 @@ def create_infra(options, script):
 
     image = None
     if create_snapshot:
-        image = dsl.snapshot(server, f"boots from /dev/sdb")
+        description = "boots from /dev/sdb"
+        if options.encrypt:
+            description = "decrypts + " + description
+        image = dsl.snapshot(server, description)
 
     if create_volume:
         if options.user_data is not None:
