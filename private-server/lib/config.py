@@ -109,7 +109,7 @@ encryption_group.add(
     help="keyfile to use as the volume encryption key",
 )
 encryption_group.add(
-    "--keyscript",
-    env_var="PS_KEYSCRIPT",
-    help="key script to install in stage1 to fetch the key",
+    "--stage1-setup",
+    env_var="PS_STAGE1_SETUP",
+    help="script to run in stage1 to install the keyscript",
 )

@@ -12,8 +12,25 @@ create-encrypted-volume:
       command: robo create-bootable-volume myserver
   command: |
     cd {{ .robo.path }}
+    set -e
+    name="$1"
     openssl rand 64 | base64 -w 0 > keyfile
-    exec bash -c './private-server.py --encrypt --keyfile keyfile --keyscript <(./gen-keyscript.sh) --user-data <(./initial-boot-user-data.py) --username ubuntu --name "$@"' "" "$@"
+    vault kv put kv/private-server/$name key=$(cat keyfile)
+    exec bash -c './private-server.py --encrypt --keyfile keyfile --stage1-setup <(./stage1-setup.py) --user-data <(./initial-boot-user-data.py "'"$name"'") --username ubuntu --name "$@" && rm keyfile' "" "$@"
+
+boot-encrypted-volume:
+  summary: Boot an encrypted volume.
+  examples:
+    - description: Boot the volume named myserver, with other arguments.
+      command: robo boot-encrypted-volume devserver --location nbg1 --image 84067928 --type cx11
+  command: |
+    bash -s <<'EOF' "$@"
+    set -euo pipefail
+    name="$1"
+    shift
+    token=$(vault kv get -wrap-ttl=120 -field wrapping_token kv/private-server/$name)
+    hcloud server create --volume $name --name $name --user-data-from-file <(printf "#cloud-config\nprivate-server:\n  token: $token\n") "$@"
+    EOF
 
 ansible-local:
   command: ansible-playbook -i localhost, --connection=local ansible/site.yml "$@"

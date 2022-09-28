@@ -7,6 +7,7 @@ import io
 import os
 import requests
 import subprocess
+import sys
 import yaml
 
 
@@ -32,6 +33,17 @@ def write_file(path, content, permissions):
 r = requests.get("https://vault.service.consul:8200/v1/pki/ca/pem")
 r.raise_for_status()
 ca_cert = r.text
+
+r = requests.get(
+    f"https://vault.service.consul:8200/v1/kv/private-server/{sys.argv[1]}",
+    headers={
+        "X-Vault-Wrap-TTL": "600",
+        "X-Vault-Token": os.environ["VAULT_TOKEN"],
+    },
+)
+r.raise_for_status()
+decryption_token = r.json()["wrap_info"]["token"]
+print(f"{sys.argv[0]}: this user data will expire in 10 minutes", file=sys.stderr)
 
 ssh_keys = (
     subprocess.run(["ssh-add", "-L"], capture_output=True, check=True)
@@ -150,9 +162,10 @@ user_data = {
             "0600",
         ),
     ],
+    "private-server": {"token": decryption_token},
 }
 
 msg = MIMEMultipart()
 msg.attach(MIMEText(yaml.dump(user_data), "cloud-config"))
-msg.attach(MIMEText(file("ansible-setup.sh"), "x-shellscript"))
+msg.attach(MIMEText(file("templates/ansible-setup.sh"), "x-shellscript"))
 print(msg.as_string())

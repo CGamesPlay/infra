@@ -12,6 +12,8 @@ def get_script(options):
     if options.keyfile:
         keyfile = pathlib.Path(options.keyfile).read_bytes()
         keyfile_b64 = base64.b64encode(keyfile).decode("utf-8")
+    else:
+        raise ValueError("keyfile is required for encryption")
 
     if options.encrypt:
         script.print_section(
@@ -297,9 +299,11 @@ def get_stage1(options):
         # Private Server stage1 cloud-config
         # Cloud-init is mostly disabled, but some modules still run.
         preserve_hostname: true
+        cloud_init_modules: []
+        cloud_config_modules: []
+        cloud_final_modules: []
         EOF
 
-        systemctl disable cloud-init cloud-config cloud-final
         systemctl disable sshd ssh
         echo stage1 > /etc/hostname
 
@@ -329,6 +333,7 @@ def get_stage1(options):
 
         cat <<EOF > /usr/local/bin/ps-kexec
         #!/bin/sh
+        set -e
         cryptsetup open --key-file=/run/keyfile /dev/sdb sdb_crypt
         mount /dev/mapper/sdb_crypt /mnt -o ro
         kexec -l /mnt/boot/vmlinuz --initrd=/mnt/boot/initrd.img --append="root=/dev/mapper/sdb_crypt ro consoleblank=0 systemd.show_status=true"
@@ -338,20 +343,22 @@ def get_stage1(options):
         """
     )
 
-    if options.keyscript is not None:
-        keyscript = pathlib.Path(options.keyscript).read_text().strip()
-        script.print(
-            f"cat <<'KEYSCRIPT_END' > /usr/local/bin/keyscript\n{keyscript}\nKEYSCRIPT_END\nchmod +x /usr/local/bin/keyscript"
-        )
+    if options.stage1_setup is not None:
+        stage1_setup = pathlib.Path(options.stage1_setup).read_text().strip()
+        script.print(f"\n{stage1_setup}")
         script.print_section(
             """
+            if ! [ -x /usr/local/bin/keyscript ]; then
+                echo "stage1 setup script did not install an executable /usr/local/bin/keyscript"
+                exit 1
+            fi
             cat <<EOF > /etc/systemd/system/ps-kexec.service
             [Unit]
             Description="Stage1 Kexec"
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/local/bin/keyscript
+            ExecStart=sh -c 'exec /usr/local/bin/keyscript > /run/keyfile'
             ExecStart=/usr/local/bin/ps-kexec
             RemainAfterExit=yes
 
