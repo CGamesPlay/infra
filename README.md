@@ -48,9 +48,9 @@ WireGuard is used to secure communications between cluster nodes. This allows us
    - `python --version` needs to be 3. `apt install python-is-python3` on Ubuntu.
    - `pip3 install ansible hvac ansible-modules-hashivault`
 2. Run `robo production terraform apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
-3. Run `robo production ansible` to apple the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
-  - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
-  - Optionally, `robo production verify` can be used to diagnose some basic issues now and in the future.
+3. Run `robo production ansible` to apply the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
+   - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
+   - Optionally, `robo production verify` can be used to diagnose some basic issues now and in the future.
 4. Connect to the machine using ssh (use `robo production master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer.
 
 Next steps:
