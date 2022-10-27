@@ -52,11 +52,8 @@ WireGuard is used to secure communications between cluster nodes. This allows us
    - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
    - Optionally, `robo production verify` can be used to diagnose some basic issues now and in the future.
 4. Connect to the machine using ssh (use `robo production master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer.
-
-Next steps:
-
-- Deploy jobs with Nomad.
-  - Write a Terraform script to do this.
+5. Deploy jobs with Nomad. **TODO:** Make an easy way to do this. Presently, you need to modify `robo.yml` to have the correct arguments for the `deploy` command, then run `robo deploy`.
+   - This will scan all playbooks in the `nomad` directory and sync the jobs. You can use `robo deploy -CD` to see the changes without applying them.
 
 ### Local environment setup
 
@@ -85,7 +82,7 @@ set State:/Network/Service/Consul/DNS
 EOF
 ```
 
-Note that even if you do this, programs written in go (like Nomad, Consul, and Vault) [will not respect this setting](https://github.com/golang/go/issues/12524), so you will need to specify IP addresses when using these CLIs. Additionally, this command needs to be run on every boot.
+Note that even if you do this, programs written in go (like Nomad, Consul, and Vault) [will not respect this setting](https://github.com/golang/go/issues/12524), so you will need to specify IP addresses when using these CLIs. Additionally, this command needs to be run on every boot (see [an example of automating this configuration](https://github.com/CGamesPlay/dotfiles/blob/master/macos/Library/LaunchAgents/local.dns.cluster.plist)).
 
 **iOS**
 
