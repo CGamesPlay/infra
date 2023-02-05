@@ -30,6 +30,8 @@ boot-encrypted-volume:
     shift
     token=$(vault kv get -wrap-ttl=120 -field wrapping_token kv/private-server/$name)
     hcloud server create --volume $name --name $name --user-data-from-file <(printf "#cloud-config\nprivate-server:\n  token: $token\n") "$@"
+    echo "Waiting for SSH..."
+    timeout 120 nc -z 173.30.0.5 22
     EOF
 
 ansible-local:
