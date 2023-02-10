@@ -1,10 +1,10 @@
 production:
   summary: perform actions on production infrastructure
-  command: TF_WORKSPACE=default robo -c robo.actions.yml "$@"
+  command: TF_WORKSPACE=prod-control robo -c robo.actions.yml "$@"
 
 staging:
   summary: perform actions on staging infrastructure
-  command: TF_WORKSPACE=staging robo -c robo.actions.yml "$@"
+  command: TF_WORKSPACE=test-control robo -c robo.actions.yml "$@"
 
 deploy:
   summary: deploy one or more jobs to the active environment

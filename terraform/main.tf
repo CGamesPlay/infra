@@ -1,8 +1,10 @@
 terraform {
-  backend "s3" {
-    bucket = "infra-029993131878"
-    key    = "terraform"
-    region = "eu-central-1"
+  cloud {
+    organization = "cgamesplay"
+
+    workspaces {
+      tags = ["core"]
+    }
   }
 
 
@@ -30,6 +32,13 @@ variable "public_ssh" {
   type        = bool
   description = "enable SSH via public IP"
   default     = true
+  nullable    = false
+}
+
+variable "delete_protection" {
+  type        = bool
+  description = "enable delete protection on important resources"
+  default     = false
   nullable    = false
 }
 
@@ -97,8 +106,8 @@ resource "hcloud_server" "master" {
   server_type        = "cx21"
   user_data          = data.external.master_user_data.result.rendered
   firewall_ids       = [hcloud_firewall.firewall.id]
-  rebuild_protection = terraform.workspace == "default"
-  delete_protection  = terraform.workspace == "default"
+  rebuild_protection = var.delete_protection
+  delete_protection  = var.delete_protection
 
   network {
     network_id = hcloud_network.network.id
@@ -123,7 +132,7 @@ resource "hcloud_volume" "master_drive" {
   server_id         = hcloud_server.master.id
   automount         = false
   format            = "ext4"
-  delete_protection = terraform.workspace == "default"
+  delete_protection = var.delete_protection
 }
 
 output "master_ip" {
