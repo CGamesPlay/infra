@@ -47,7 +47,8 @@ job "traefik" {
         volumes = [
           "local/ca.crt:/etc/traefik/ca.crt",
           "local/traefik.toml:/etc/traefik/traefik.toml",
-          "local/acme:/etc/traefik/acme"
+          "local/acme:/etc/traefik/acme",
+          "local/static.toml:/etc/traefik/static.toml"
         ]
       }
 
@@ -77,6 +78,11 @@ job "traefik" {
           # the traefik entryPoint.
           insecure = true
 
+          # Enable some hard-coded configuration options
+          [providers.file]
+          filename = "/etc/traefik/static.toml"
+          watch = false
+
           # Enable Consul Catalog configuration backend.
           [providers.consulCatalog]
           exposedByDefault = false
@@ -102,6 +108,22 @@ job "traefik" {
           {{ .Data.certificate }}
           {{ end }}
           EOF
+      }
+
+      template {
+        destination = "local/static.toml"
+        data = <<-EOF
+        {{ if keyExists "traefik/config/tunnel" }}
+        [http.routers.tunnel]
+        entryPoints = [ "https" ]
+        service = "tunnel"
+        rule = "Host(`tunnel.{{ key "traefik/config/domain" }}`)"
+        tls.certresolver = "le"
+
+        [["[["]]http.services.tunnel.loadBalancer.servers]]
+        url = "http://{{ key "traefik/config/tunnel" }}/"
+        {{ end }}
+        EOF
       }
 
       resources {

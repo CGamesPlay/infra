@@ -82,7 +82,7 @@ set State:/Network/Service/Consul/DNS
 EOF
 ```
 
-Note that even if you do this, programs written in go (like Nomad, Consul, and Vault) [will not respect this setting](https://github.com/golang/go/issues/12524), so you will need to specify IP addresses when using these CLIs. Additionally, this command needs to be run on every boot (see [an example of automating this configuration](https://github.com/CGamesPlay/dotfiles/blob/master/macos/Library/LaunchAgents/local.dns.cluster.plist)).
+Note that even if you do this, programs written in go (like Nomad, Consul, and Vault) [will not respect this setting](https://github.com/golang/go/issues/12524), so you will need to specify IP addresses when using these CLIs. Additionally, this command needs to be run on every boot (see [an example of automating this configuration](https://github.com/CGamesPlay/dotfiles/blob/master/macos/Library/LaunchAgents/local.dns.cluster.plist)). This is resolved in Go 1.20, released 2023-02-01.
 
 **iOS**
 

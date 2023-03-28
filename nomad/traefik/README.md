@@ -35,3 +35,17 @@ The usage of `${NOMAD_JOB_NAME}` means that the subdomain for the service will d
 The first place to look should be the [Traefik dashboard](https://172.30.0.1:8080). This will list all configured services and the rules required to access them. If something isn't listed there, check the [Consul dashboard](https://172.30.0.1:8501) to ensure that the service is properly registered and healthy.
 
 It may be helpful to enable the DEBUG log level in Traefik, which will cause it to log to stdout every change in configuration.
+
+### Tunnel to a WireGuard peer
+
+It's possible to use Traefik to forward a specific subdomain to a WireGuard
+peer, for example a laptop. This serves as a very basic alternative to ngrok.
+In this configuration, Traefik will unwrap the SSL and forward the connection
+over WireGuard.
+
+Setting the `traefik/config/tunnel` key in Consul will cause Traefik to forward
+the "tunnel" subdomain to that address.
+
+```bash
+consul kv put traefik/config/tunnel 172.30.15.1:3000
+```
