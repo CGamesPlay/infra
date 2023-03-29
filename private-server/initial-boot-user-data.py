@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import gzip
 import io
 import os
-import requests
 import subprocess
 import sys
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+import requests
 import yaml
 
 
@@ -34,75 +35,77 @@ r = requests.get("https://vault.service.consul:8200/v1/pki/ca/pem")
 r.raise_for_status()
 ca_cert = r.text
 
-r = requests.get(
-    f"https://vault.service.consul:8200/v1/kv/private-server/{sys.argv[1]}",
-    headers={
-        "X-Vault-Wrap-TTL": "600",
-        "X-Vault-Token": os.environ["VAULT_TOKEN"],
-    },
-)
-r.raise_for_status()
-decryption_token = r.json()["wrap_info"]["token"]
-print(f"{sys.argv[0]}: this user data will expire in 10 minutes", file=sys.stderr)
-
 ssh_keys = (
     subprocess.run(["ssh-add", "-L"], capture_output=True, check=True)
     .stdout.decode("utf-8")
     .splitlines()
 )
 
+# https://apt.releases.hashicorp.com/gpg
 hashicorp_key = """
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
-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
+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
-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
-=emKC
+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
+OW/EWzeMRG15C0td1lfHvwPKvf2MN+WLenp9TGZ7A1kEHIpjKvY51AIkX2kW5QLu
+Y3LBb+HGiZ6j7AaU4uYR3kS1+L79v4kyvhhBOgx/8V+b3+2pQIsVOp79ySGvVwpL
+FJ2QUgO15hnlQJrFLRYa0PISKrSWf35KXAy04mjqCYqIGkLsz2qQCY2lGcD5k05z
+bBC4TvxwVxv0ftl2C5Bd0ydl/2YM7GfLrmZmTijK067t4OO+2SROT2oYPDsMtZ6S
+E8vUXvoGpQ8tf5Nkrn2t0zDG3UDtgZY5UVYnZI+xT7WHsCz//8fY3QMvPXAuc33T
+vVdiSfP0aBnZXj6oGs/4Vl1Dmm62XLr13+SMoepMWg2Vt7C8jqKOmhFmSOWyOmRH
+UZJR7nKvTpFnL8atSyFDa4o1bk2U3alOscWS8u8xJ/iMcoONEBhItft6olpMVdzP
+CTrnCAqMjTSPlQU/9EGtp21KQBed2KdAsJBYuPgwaQeyNIvQEOXmINavl58VD72Y
+2T4TFEY8dUiExAYpSodbwBL2fr8DJxOX68WH6e3fF7HwX8LRBjZq0XUwh0KxgHN+
+b9gGXBvgWnJr4NSQGGPiSQVNNHt2ZcBAClYhm+9eC5/VwB+Etg4+1wDmggztiqE=
+=FdUF
 -----END PGP PUBLIC KEY BLOCK-----
 """
 
@@ -162,8 +165,21 @@ user_data = {
             "0600",
         ),
     ],
-    "private-server": {"token": decryption_token},
 }
+
+if len(sys.argv) > 1:
+    r = requests.get(
+        f"https://vault.service.consul:8200/v1/kv/private-server/{sys.argv[1]}",
+        headers={
+            "X-Vault-Wrap-TTL": "600",
+            "X-Vault-Token": os.environ["VAULT_TOKEN"],
+        },
+    )
+    r.raise_for_status()
+    decryption_token = r.json()["wrap_info"]["token"]
+    print(f"{sys.argv[0]}: this user data will expire in 10 minutes", file=sys.stderr)
+
+    user_data["private-server"] = {"token": decryption_token}
 
 msg = MIMEMultipart()
 msg.attach(MIMEText(yaml.dump(user_data), "cloud-config"))

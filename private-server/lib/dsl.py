@@ -5,12 +5,12 @@ import socket
 import textwrap
 import time
 
+import fabric
 import hcloud
-from hcloud.ssh_keys.domain import SSHKey
-from hcloud.server_types.domain import ServerType
 from hcloud.images.domain import Image
 from hcloud.locations.domain import Location
-import fabric
+from hcloud.server_types.domain import ServerType
+from hcloud.ssh_keys.domain import SSHKey
 from paramiko.client import MissingHostKeyPolicy
 
 
@@ -166,7 +166,7 @@ class DSL:
     def shutdown(self, server):
         action = server.shutdown()
         action.wait_until_finished()
-        for i in range(20):
+        for i in range(60):
             try:
                 server = self.hcloud.servers.get_by_id(server.id)
                 if server.status == "off":
@@ -177,7 +177,7 @@ class DSL:
                 # this will fail, but we should detect and swallow the
                 # error.
                 if e.code == "not_found":
-                    break
+                    return
                 raise e
         if server.status != "off":
             raise ValueError("the server isn't off")
@@ -209,14 +209,23 @@ class DSL:
             raise ValueError("failed to delete volume")
 
     def ssh(self, server, *, user, password=None):
-        wait_for_port(22, server.public_net.ipv4.ip, 120)
-        conn = fabric.Connection(
-            host=server.public_net.ipv4.ip,
-            user=user,
-            connect_kwargs=dict(password=password),
-        )
-        conn.client.set_missing_host_key_policy(IgnorePolicy())
-        conn.open()
+        wait_for_port(22, server.public_net.ipv4.ip, 180)
+        conn = None
+        for i in range(3):
+            try:
+                conn = fabric.Connection(
+                    host=server.public_net.ipv4.ip,
+                    user=user,
+                    connect_kwargs=dict(password=password),
+                )
+                conn.client.set_missing_host_key_policy(IgnorePolicy())
+                conn.open()
+            except Exception as ex:
+                if i == 2:
+                    raise ex
+                print(str(ex))
+                print("retrying...")
+                time.sleep(5)
         return conn
 
     def breakpoint(self, name, enabled_breakpoints, conn):

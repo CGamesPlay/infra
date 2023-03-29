@@ -1,5 +1,5 @@
-import pathlib
 import base64
+import pathlib
 
 from .dsl import ScriptIO
 
@@ -9,13 +9,13 @@ def get_script(options):
     script.print("set -uexo pipefail")
 
     root_device = "/dev/mapper/sdb_crypt" if options.encrypt else "/dev/sdb"
-    if options.keyfile:
-        keyfile = pathlib.Path(options.keyfile).read_bytes()
-        keyfile_b64 = base64.b64encode(keyfile).decode("utf-8")
-    else:
-        raise ValueError("keyfile is required for encryption")
-
     if options.encrypt:
+        if options.keyfile:
+            keyfile = pathlib.Path(options.keyfile).read_bytes()
+            keyfile_b64 = base64.b64encode(keyfile).decode("utf-8")
+        else:
+            raise ValueError("keyfile is required for encryption")
+
         script.print_section(
             f"""
             # Set up the encrypted volume
