@@ -1,36 +1,53 @@
 ---
-  - hosts: '*'
-    gather_facts: false
-    become: yes
-    tags:
-      - general
-    tasks:
-      - name: allocate swapfile
-        shell:
-          creates: /swapfile
-          cmd: |
-            set -e
-            fallocate -l 4G /swapfile
-            chmod 600 /swapfile
-            mkswap /swapfile
-            swapon /swapfile
-      - lineinfile:
-          path: /etc/fstab
-          regexp: '/swapfile'
-          line: '/swapfile swap swap defaults 0 0'
+- hosts: "*"
+  gather_facts: true
+  become: yes
+  tags:
+    - general
+  tasks:
+    - name: allocate swapfile
+      shell:
+        creates: /swapfile
+        cmd: |
+          set -e
+          fallocate -l 4G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+    - lineinfile:
+        path: /etc/fstab
+        regexp: "/swapfile"
+        line: "/swapfile swap swap defaults 0 0"
 
-      - name: lock down ssh
-        lineinfile:
-          path: /etc/ssh/sshd_config
-          regexp: '^#?PermitRootLogin'
-          line: 'PermitRootLogin no'
-        register: permit_root_login
-      - lineinfile:
-          path: /etc/ssh/sshd_config
-          regexp: '^#?PasswordAuthentication'
-          line: 'PasswordAuthentication no'
-        register: password_authentication
-      - systemd:
-          name: sshd
-          state: reloaded
-        when: permit_root_login.changed or password_authentication.changed
+    - name: lock down ssh
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitRootLogin"
+        line: "PermitRootLogin no"
+      register: permit_root_login
+    - lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      register: password_authentication
+    - systemd:
+        name: sshd
+        state: reloaded
+      when: permit_root_login.changed or password_authentication.changed
+
+    - shell:
+        cmd: wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+        creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    - apt_repository:
+        filename: hashicorp
+        repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    - apt:
+        name:
+          - docker.io=20.10.21-0ubuntu1~22.04.3
+          - vault=1.13.2-1
+          - consul=1.13.1-1
+          - consul-template=0.29.2-1
+          - nomad=1.5.3-1
+          - wireguard
+          - net-tools
+          - jq
