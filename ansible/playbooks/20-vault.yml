@@ -1,157 +1,176 @@
 ---
-  - name: configure vault
-    # When this playbook completes, Vault will be running with a trusted
-    # certificate, and root on the server will be able to use the vault
-    # CLI seamlessly. Vault agent will have valid certificates
-    # installed.
-    hosts: '*'
-    become: true
-    gather_facts: false
-    tags:
-      - vault
-    tasks:
-      - name: "create directories"
-        file:
-          path: "{{ item }}"
-          mode: 0750
-          owner: vault
-          group: vault
-          state: directory
-        loop:
-          - /opt/vault
-          - /opt/vault/raft
-          - /etc/vault.d
-      - file:
-          path: /usr/lib/vault
-          mode: 0755
-          state: directory
-      - template:
-          src: ../templates/vault/vault.hcl.j2
-          dest: /etc/vault.d/vault.hcl
-        notify:
-          - reload vault
-      - lineinfile:
-          path: /etc/environment
-          regexp: '^VAULT_ADDR='
-          line: 'VAULT_ADDR=https://127.0.0.1:8200'
-      - name: create default SSL certificate
-        shell:
-          creates: /opt/vault/server.crt
-          chdir: /opt/vault
-          cmd: |
-            set -e
-            cat >config <<EOF
-            [req]
-            prompt = no
-            distinguished_name = distinguished_name
-            req_extensions = req_ext
-            x509_extensions = v3_req
-            [distinguished_name]
-            commonName = vault.service.consul
-            [req_ext]
-            subjectAltName = @alt_names
-            [v3_req]
-            subjectAltName = @alt_names
-            [alt_names]
-            IP.1 = 127.0.0.1
-            EOF
-            openssl req -x509 -nodes -newkey rsa:4096 -keyout server.key -out server.crt -sha256 -days 365 -config config
-            rm config
-            chown vault:vault server.crt server.key
-      - systemd:
-          name: vault
-          state: started
-          enabled: true
-        register: start_vault
+- name: configure vault
+  # When this playbook completes, Vault will be running with a trusted
+  # certificate, and root on the server will be able to use the vault
+  # CLI seamlessly. Vault agent will have valid certificates
+  # installed.
+  hosts: "*"
+  become: true
+  gather_facts: false
+  tags:
+    - vault
+  tasks:
+    - name: "create directories"
+      file:
+        path: "{{ item }}"
+        mode: 0750
+        owner: vault
+        group: vault
+        state: directory
+      loop:
+        - /opt/vault
+        - /opt/vault/raft
+        - /etc/vault.d
+    - file:
+        path: /usr/lib/vault
+        mode: 0755
+        state: directory
+    - template:
+        src: ../templates/vault/vault.hcl.j2
+        dest: /etc/vault.d/vault.hcl
+      notify:
+        - reload vault
+    - lineinfile:
+        path: /etc/environment
+        regexp: "^VAULT_ADDR="
+        line: "VAULT_ADDR=https://127.0.0.1:8200"
+    - name: create default SSL certificate
+      shell:
+        creates: /opt/vault/server.crt
+        chdir: /opt/vault
+        cmd: |
+          set -e
+          cat >config <<EOF
+          [req]
+          prompt = no
+          distinguished_name = distinguished_name
+          req_extensions = req_ext
+          x509_extensions = v3_req
+          [distinguished_name]
+          commonName = vault.service.consul
+          [req_ext]
+          subjectAltName = @alt_names
+          [v3_req]
+          subjectAltName = @alt_names
+          [alt_names]
+          IP.1 = 127.0.0.1
+          EOF
+          openssl req -x509 -nodes -newkey rsa:4096 -keyout server.key -out server.crt -sha256 -days 365 -config config
+          rm config
+          chown vault:vault server.crt server.key
+    - systemd:
+        name: vault
+        state: started
+        enabled: true
+      register: start_vault
 
-      - name: check status of vault
-        command: vault status -ca-cert=/opt/vault/server.crt -format=yaml
-        register: vault_status_raw
-        changed_when: false
-        failed_when:
-          - vault_status_raw.rc == 1
-      - set_fact:
-          vault_status: "{{ vault_status_raw.stdout | from_yaml }}"
+    - name: check status of vault
+      command: vault status -ca-cert=/opt/vault/server.crt -format=yaml
+      register: vault_status_raw
+      changed_when: false
+      failed_when:
+        - vault_status_raw.rc == 1
+    - set_fact:
+        vault_status: "{{ vault_status_raw.stdout | from_yaml }}"
 
-      - name: initialize vault
-        command: vault operator init -ca-cert=/opt/vault/server.crt -key-shares=1 -key-threshold=1 -format=yaml
-        register: vault_operator_init
-        when:
-          - vault_status.initialized is defined
-          - not vault_status.initialized
-      - set_fact:
-          vault_init_output: "{{ vault_operator_init.stdout | from_yaml }}"
-        when:
-          - vault_operator_init is defined
-          - vault_operator_init.stdout is defined
+    - name: initialize vault
+      command: vault operator init -ca-cert=/opt/vault/server.crt -key-shares=1 -key-threshold=1 -format=yaml
+      register: vault_operator_init
+      when:
+        - vault_status.initialized is defined
+        - not vault_status.initialized
+    - set_fact:
+        vault_init_output: "{{ vault_operator_init.stdout | from_yaml }}"
+      when:
+        - vault_operator_init is defined
+        - vault_operator_init.stdout is defined
 
-      - name: unseal vault
-        block:
-          - local_action:
-              module: copy
-              content: |
-                Unseal keys: {{ vault_init_output.unseal_keys_b64 | default(vault_unseal_keys) }}
-                Root token: {{ vault_init_output.root_token }}
-              dest: ../../vault.txt
-            when:
-              - vault_init_output is defined and
-                vault_init_output.root_token is defined
+    - name: unseal vault
+      block:
+        - local_action:
+            module: copy
+            content: |
+              Unseal keys: {{ vault_init_output.unseal_keys_b64 | default(vault_unseal_keys) }}
+              Root token: {{ vault_init_output.root_token }}
+            dest: ../../vault.txt
+          when:
+            - vault_init_output is defined and
+              vault_init_output.root_token is defined
 
-          - name: save login token to /root/.vault-token
-            copy:
-              content: "{{ vault_init_output.root_token }}\n"
-              dest: /root/.vault-token
-              mode: 0640
-            when:
-              - vault_init_output is defined and
-                vault_init_output.root_token is defined
+        - name: save login token to /root/.vault-token
+          copy:
+            content: "{{ vault_init_output.root_token }}\n"
+            dest: /root/.vault-token
+            mode: 0640
+          when:
+            - vault_init_output is defined and
+              vault_init_output.root_token is defined
 
-          - name: unseal vault
-            command: vault operator unseal -ca-cert=/opt/vault/server.crt {{ item }}
-            loop: "{{ vault_init_output.unseal_keys_b64 | default(vault_unseal_keys) }}"
-            loop_control:
-              label: "hidden"
-            no_log: yes
-            when:
-              - vault_status.sealed
-        when:
-          - (vault_init_output is defined and
-            vault_init_output.unseal_keys_b64 is defined and
-            vault_init_output.unseal_keys_b64 is iterable) or
-            (vault_unseal_keys is defined)
+        - name: unseal vault
+          command: vault operator unseal -ca-cert=/opt/vault/server.crt {{ item }}
+          loop: "{{ vault_init_output.unseal_keys_b64 | default(vault_unseal_keys) }}"
+          loop_control:
+            label: "hidden"
+          no_log: yes
+          when:
+            - vault_status.sealed
+      when:
+        - (vault_init_output is defined and
+          vault_init_output.unseal_keys_b64 is defined and
+          vault_init_output.unseal_keys_b64 is iterable) or
+          (vault_unseal_keys is defined)
 
-      - name: configure Vault TLS
-        script: ../templates/vault/initial-setup.sh
-        environment:
-          DC: "{{ DC }}"
-          BASE_DOMAIN: "{{ traefik_domain }}"
-        when:
-          - vault_init_output is defined
+    - name: configure Vault TLS
+      script: ../templates/vault/initial-setup.sh
+      environment:
+        DC: "{{ DC }}"
+        BASE_DOMAIN: "{{ traefik_domain }}"
+      when:
+        - vault_init_output is defined
 
-      - name: download vault-plugin-secrets-wireguard
-        shell:
-          creates: /usr/lib/vault/wireguard
-          chdir: /usr/lib/vault
-          cmd: |
-            set -ue
-            curl -fsSL https://github.com/candiddev/vault-plugin-secrets-wireguard/releases/download/v1.0.0/vault-plugin-secrets-wireguard_v1.0.0_linux-amd64.gz -o wireguard.gz
-            gunzip wireguard.gz
-            chmod +x wireguard
-      - name: enable vault plugin wireguard
-        shell:
-          cmd: |
-            if ! vault secrets list -format=yaml | grep '^wireguard/:'; then
-              vault plugin register -sha256=d0050b2400a82f4a1424f4617c0f8f45bfd27f06d68ed82c2fb36047003c9c30 wireguard
-              vault secrets enable -path wireguard wireguard
-            else
-              echo 'Nothing to do'
-            fi
-        register: enable_vault_wireguard
-        changed_when: "'Nothing to do' not in enable_vault_wireguard.stdout"
-    handlers:
+    - name: download vault-plugin-secrets-wireguard
+      shell:
+        creates: /usr/lib/vault/wireguard
+        chdir: /usr/lib/vault
+        cmd: |
+          set -ue
+          curl -fsSL https://github.com/candiddev/vault-plugin-secrets-wireguard/releases/download/v1.0.0/vault-plugin-secrets-wireguard_v1.0.0_linux-amd64.gz -o wireguard.gz
+          gunzip wireguard.gz
+          chmod +x wireguard
+    - name: enable vault plugin wireguard
+      shell:
+        cmd: |
+          if ! vault secrets list -format=yaml | grep '^wireguard/:'; then
+            vault plugin register -sha256=d0050b2400a82f4a1424f4617c0f8f45bfd27f06d68ed82c2fb36047003c9c30 wireguard
+            vault secrets enable -path wireguard wireguard
+          else
+            echo 'Nothing to do'
+          fi
+      register: enable_vault_wireguard
+      changed_when: "'Nothing to do' not in enable_vault_wireguard.stdout"
+    - name: enable vault auth methods
+      shell:
+        cmd: |
+          if ! vault auth list -format=yaml | grep '^userpass/:'; then
+            vault auth enable userpass
+          fi
+          if ! vault auth list -format=yaml | grep '^approle/:'; then
+            vault auth enable approle
+          fi
+      changed_when: no # no change detection
+    - name: set vault general policies
+      shell:
+        cmd: |
+          vault policy write vault-operator - <<EOF
+          path "*" {
+            policy = "write"
+            capabilities = ["sudo"]
+          }
+          EOF
+      changed_when: no # no change detection
+  handlers:
     - name: reload vault
       systemd:
         name: vault
         state: reloaded
       when: not start_vault.changed
-

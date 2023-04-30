@@ -156,9 +156,9 @@
         cmd: |
           export NOMAD_TOKEN=$(vault read -field=token kv/cluster/nomad)
           nomad acl policy apply -description "Deploy (CD) policy" deploy - <<EOF
-          namespace "default" {
+          namespace "*" {
               policy = "scale"
-              capabilities = [ "submit-job", "dispatch-job", "scale-job" ]
+              capabilities = [ "read-job", "submit-job", "dispatch-job", "scale-job" ]
           }
           EOF
       changed_when: no # no change detection
@@ -173,6 +173,7 @@
           EOF
 
           vault write nomad/role/deploy policies=deploy
+          vault write auth/approle/role/deploy token_policies=nomad-deploy
       changed_when: no # no change detection
 
   handlers:
