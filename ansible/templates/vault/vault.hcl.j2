@@ -17,8 +17,4 @@ storage "raft" {
 
 service_registration "consul" {
   address      = "127.0.0.1:8500"
-
-  # This configures Traefik to forward encrypted connections to Vault when
-  # accessed from the public subdomain.
-  service_tags = "traefik.enable=true, traefik.tcp.routers.vault.tls.passthrough=true, traefik.tcp.routers.vault.rule=HostSNI(`vault.{{ traefik_domain }}`)"
 }

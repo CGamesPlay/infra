@@ -1,7 +1,7 @@
 job "traefik" {
   datacenters = ["nbg1"]
-  type = "service"
-  priority = 90
+  type        = "service"
+  priority    = 90
 
   group "main" {
     network {
@@ -21,7 +21,7 @@ job "traefik" {
     }
 
     ephemeral_disk {
-      sticky = true
+      sticky  = true
       migrate = true
     }
 
@@ -41,7 +41,7 @@ job "traefik" {
       driver = "docker"
 
       config {
-        image        = "traefik:v2.6"
+        image        = "traefik:v2.10"
         network_mode = "host"
 
         volumes = [
@@ -54,7 +54,7 @@ job "traefik" {
 
       template {
         destination = "local/traefik.toml"
-        data = <<-EOF
+        data        = <<-EOF
           [entryPoints.http]
           address = ":{{env "NOMAD_PORT_http"}}"
           [entryPoints.http.http.redirections.entryPoint]
@@ -103,7 +103,7 @@ job "traefik" {
 
       template {
         destination = "local/ca.crt"
-        data = <<-EOF
+        data        = <<-EOF
           {{ with secret "pki/cert/ca"}}
           {{ .Data.certificate }}
           {{ end }}
@@ -112,7 +112,23 @@ job "traefik" {
 
       template {
         destination = "local/static.toml"
-        data = <<-EOF
+        data        = <<-EOF
+        [tcp.routers.nomad]
+        service = "nomad"
+        rule = "HostSNI(`nomad.{{ key "traefik/config/domain" }}`)"
+        tls.passthrough = true
+
+        [["[["]]tcp.services.nomad.loadBalancer.servers]]
+        address = "127.0.0.1:4646"
+
+        [tcp.routers.vault]
+        service = "vault"
+        rule = "HostSNI(`vault.{{ key "traefik/config/domain" }}`)"
+        tls.passthrough = true
+
+        [["[["]]tcp.services.vault.loadBalancer.servers]]
+        address = "127.0.0.1:8200"
+
         {{ if keyExists "traefik/config/tunnel" }}
         [http.routers.tunnel]
         entryPoints = [ "https" ]
@@ -132,5 +148,3 @@ job "traefik" {
     }
   }
 }
-
-

@@ -17,7 +17,7 @@ master_ip:
 
 ansible:
   summary: sync all configuration files on all servers
-  command: ansible-playbook -u ubuntu -i $(robo -c {{ .robo.file }} master_ip), {{ .ansible_variables }} ansible/site.yml "$@"
+  command: ansible-playbook -u ubuntu -i master.node.consul, {{ .ansible_variables }} ansible/site.yml "$@"
   examples:
     - description: Preview changes
       command: robo ansible -CD
@@ -26,7 +26,7 @@ ansible:
 
 verify:
   summary: Verify that services are all working
-  command: ansible-playbook -u ubuntu -i $(robo -c {{ .robo.file }} master_ip), {{ .ansible_variables }} ansible/playbooks/verify.yml "$@"
+  command: ansible-playbook -u ubuntu -i master.node.consul, {{ .ansible_variables }} ansible/playbooks/verify.yml "$@"
 
 variables:
   ansible_variables: "-e DC=nbg1 -e wireguard_ip=172.30.0.1 -e traefik_domain=$BASE_DOMAIN"

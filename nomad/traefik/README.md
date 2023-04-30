@@ -48,4 +48,6 @@ the "tunnel" subdomain to that address.
 
 ```bash
 consul kv put traefik/config/tunnel 172.30.15.1:3000
+# Later, remove with
+consul kv delete traefik/config/tunnel
 ```

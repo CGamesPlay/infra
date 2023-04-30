@@ -1,0 +1,183 @@
+---
+- name: configure nomad
+  hosts: "*"
+  become: true
+  gather_facts: false
+  tags:
+    - nomad
+  tasks:
+    - name: "create directories"
+      file:
+        path: "{{ item }}"
+        mode: 0750
+        owner: nomad
+        group: nomad
+        state: directory
+      loop:
+        - /opt/nomad
+        - /etc/nomad.d
+    - file:
+        path: "/usr/local/cni/bin"
+        mode: 0755
+        state: directory
+    - name: "touch config files"
+      file:
+        path: "{{ item }}"
+        mode: 0640
+        owner: nomad
+        group: nomad
+        state: touch
+      changed_when: no
+      loop:
+        - /opt/nomad/agent.crt
+        - /opt/nomad/agent.key
+        - /etc/nomad.d/server.hcl
+    - template:
+        src: ../templates/nomad/nomad.hcl.j2
+        dest: /etc/nomad.d/nomad.hcl
+      notify:
+        - reload nomad
+    - name: nomad encryption
+      blockinfile:
+        path: /etc/vault-agent.d/vault-agent.hcl
+        marker: "# {mark} NOMAD SERVER CONFIG"
+        block: |
+          template {
+              destination = "/etc/nomad.d/server.hcl"
+              perms = "0640"
+              error_on_missing_key = true
+              contents = <<EOF
+          server {
+            enabled = true
+            bootstrap_expect = 1
+            {{ '{{' }} with secret "kv/cluster/nomad_config" -}}
+            encrypt = "{{ '{{' }} .Data.gossip_key }}"
+            {{ '{{' }}- end }}
+          }
+
+          consul {
+            address = "127.0.0.1:8501"
+            {{ '{{' }} with secret "kv/cluster/nomad_config" -}}
+            token = "{{ '{{' }} .Data.consul_token }}"
+            {{ '{{' }}- end }}
+            ssl = true
+          }
+
+          vault {
+            enabled = true
+          }
+          EOF
+              exec {
+                  command = "if systemctl is-active nomad; then service nomad reload; fi"
+              }
+          }
+      register: nomad_encryption
+    - template:
+        src: ../templates/nomad/client.hcl.j2
+        dest: /etc/nomad.d/client.hcl
+      notify:
+        - reload nomad
+    - name: read vault root token
+      command: cat /root/.vault-token
+      register: vault_root_token_command
+      check_mode: no
+      changed_when: no
+    - lineinfile:
+        path: /etc/nomad.d/nomad.env
+        create: yes
+        owner: nomad
+        group: nomad
+        mode: 0640
+        regexp: "^VAULT_TOKEN="
+        line: "VAULT_TOKEN={{ vault_root_token_command.stdout }}"
+      diff: no
+    - unarchive:
+        src: https://github.com/containernetworking/plugins/releases/download/v1.1.1/cni-plugins-linux-amd64-v1.1.1.tgz
+        remote_src: true
+        dest: /usr/local/cni/bin
+        creates: /usr/local/cni/bin/bridge
+      register: result
+      until: result is not failed
+    - lineinfile:
+        path: /etc/environment
+        regexp: "^NOMAD_ADDR="
+        line: "NOMAD_ADDR=https://127.0.0.1:4646"
+
+    - name: restart vault-agent
+      systemd:
+        name: vault-agent
+        state: restarted
+      when: nomad_encryption is changed
+    - systemd:
+        name: nomad
+        state: started
+        enabled: true
+      register: start_nomad
+    - wait_for:
+        port: 4646
+
+    - name: bootstrap nomad ACL
+      command: nomad acl bootstrap -json
+      register: nomad_acl_bootstrap_raw
+      failed_when:
+        - nomad_acl_bootstrap_raw.rc != 0
+        - "'ACL bootstrap already done' not in nomad_acl_bootstrap_raw.stderr"
+      changed_when:
+        - nomad_acl_bootstrap_raw.rc == 0
+      environment:
+        - NOMAD_ADDR: https://127.0.0.1:4646/
+    - block:
+        - set_fact:
+            nomad_acl_bootstrap: "{{ nomad_acl_bootstrap_raw.stdout | from_json }}"
+        - name: store nomad token in vault
+          shell:
+            cmd: vault write kv/cluster/nomad token="$NOMAD_TOKEN"
+          environment:
+            - NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+        - name: enable vault plugin nomad
+          shell:
+            cmd: |
+              if ! vault secrets list -format=yaml | grep '^nomad/:'; then
+                vault secrets enable nomad
+                vault write nomad/config/access address=https://127.0.0.1:4646 token=$NOMAD_TOKEN
+              else
+                echo 'Nothing to do'
+              fi
+          environment:
+            - NOMAD_TOKEN: "{{ nomad_acl_bootstrap.SecretID }}"
+          register: enable_vault_nomad
+          changed_when: "'Nothing to do' not in enable_vault_nomad.stdout"
+      when:
+        - not ansible_check_mode
+        - nomad_acl_bootstrap_raw.rc == 0
+
+    - name: set nomad ACLs
+      shell:
+        cmd: |
+          export NOMAD_TOKEN=$(vault read -field=token kv/cluster/nomad)
+          nomad acl policy apply -description "Deploy (CD) policy" deploy - <<EOF
+          namespace "default" {
+              policy = "scale"
+              capabilities = [ "submit-job", "dispatch-job", "scale-job" ]
+          }
+          EOF
+      changed_when: no # no change detection
+
+    - name: set vault nomad policy
+      shell:
+        cmd: |
+          vault policy write nomad-deploy - <<EOF
+          path "nomad/creds/deploy" {
+            policy = "write"
+          }
+          EOF
+
+          vault write nomad/role/deploy policies=deploy
+      changed_when: no # no change detection
+
+  handlers:
+    - name: reload nomad
+      systemd:
+        name: nomad
+        state: reloaded
+      when: not start_nomad.changed
