@@ -51,7 +51,7 @@
         become_user: ubuntu
         block:
           - git:
-              repo: https://github.com/CGamesPlay/dotfiles
+              repo: https://gitlab.com/CGamesPlay/dotfiles.git
               dest: /home/ubuntu/dotfiles
             register: result
           - shell:
