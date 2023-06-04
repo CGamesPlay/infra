@@ -120,23 +120,21 @@ plugin "docker" {
 
 The Ansible playbooks set up an AppRole auth method preconfigured with a deployment role. Basically, you can use a script like the following to get a Nomad token which is able to submit jobs and scale them (but is otherwise limited).
 
-1. Retrieve the RoleID using `vault read auth/approle/role/deploy/role-id`. Use this in step 3.
-2. Create a new SecretID using `vault write -f auth/approle/role/deploy/secret-id`. Save this as `VAULT_SECRET_ID` in the CI/CDs secrets store.
-3. Use a script like this:
+1. Install the [gitlab-ci.yml template](script/Deploy.gitlab-ci.yml) to the repository you want to deploy. Note that the deploy image referenced is specific to my cluster, you'll want to generate your own with your CA cert installed.
+2. Find the correct RoleID and the value in the template: `vault read auth/approle/role/deploy/role-id`
+3. Create a new SecretID using `vault write -f auth/approle/role/deploy/secret-id`. Save this as `VAULT_SECRET_ID` in the CI/CDs secrets store.
+
+If you want a more manual approach, these curl snippets will get the token without installing the Vault CLI.
 
 ```bash
-VAULT_ROLE_ID=2d68a8af-e06f-7746-4bf2-4dc55d07108a # From Step 1
+VAULT_ADDR=https://myvault.example.tld # Fill in appropriately.
+VAULT_ROLE_ID=2d68a8af-e06f-7746-4bf2-4dc55d07108a # From Step 2
 # Make sure to install the CA certificate.
 
-# With the CLI
-VAULT_TOKEN=$(vault write auth/approle/login -field=token role_id="$VAULT_ROLE_ID" secret_id="$VAULT_SECRET_ID")
-NOMAD_TOKEN=$(vault read -field=secret_id nomad/creds/deploy)
-
-# With cURL
 VAULT_TOKEN=$(curl --request POST --data '{ "role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'" }' $VAULT_ADDR/v1/auth/approle/login \
-	| jq -r ".auth.client_token")
+	| jq -r ".auth.client_token") || exit $?
 NOMAD_TOKEN=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/nomad/creds/deploy \
-	| jq -r '.data.secret_id')
+	| jq -r '.data.secret_id') || exit $?
 ```
 
 ## Networking reference
