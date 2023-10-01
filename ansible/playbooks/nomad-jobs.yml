@@ -2,7 +2,7 @@
   - hosts: '*'
     # This playbook is responsible for deploying all of the Nomad
     # workloads. It runs locally, and must be configured with environment
-    # variables set by `robo env`.
+    # variables set by `argc env`.
     gather_facts: false
     tasks:
       - name: gather jobs
@@ -12,11 +12,11 @@
             tags:
               - "{{ item | dirname | basename | splitext | first }}"
         vars:
-          - job_dir: "../../{{ item | dirname }}"
-          - job_name: "{{ item | dirname | basename | splitext | first }}"
+          job_dir: "../../{{ item | dirname }}"
+          job_name: "{{ item | dirname | basename | splitext | first }}"
         # We need to ensure that the core jobs are loaded first because they
         # are dependencies of many other jobs.
         # NOTE: On GitHub the devs threaten to break the fileglob filter so
         # that it doesn't match '*' in directory position.
-        loop: "{{ ['nomad/traefik/tasks.yml', 'nomad/registry/tasks.yml'] + ('nomad/*/tasks.yml' | fileglob | reject('search', '/registry|traefik/') | sort) }}"
+        loop: "{{ ['nomad/traefik/tasks.yml'] + ('nomad/*/tasks.yml' | fileglob | reject('search', '/traefik/') | sort) }}"
         tags: always

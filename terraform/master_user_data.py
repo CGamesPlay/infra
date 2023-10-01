@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # This script generates the user data used to spin up the master instance. It
 # is called by Terraform.
 
