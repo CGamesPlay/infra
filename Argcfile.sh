@@ -46,7 +46,7 @@ master-ip() {
 #   argc ansible -- --help
 # @arg    args*  Arguments to ansible
 ansible() {
-	exec ansible-playbook -u ubuntu -i master.node.consul, "${ansible_variables[@]}" ansible/site.yml ${argc_args+"${argc_args[@]}"}
+	ANSIBLE_CONFIG=ansible/ansible.cfg exec ansible-playbook -u ubuntu -i master.node.consul, "${ansible_variables[@]}" ansible/site.yml ${argc_args+"${argc_args[@]}"}
 }
 
 # @cmd Verify that all services are running
