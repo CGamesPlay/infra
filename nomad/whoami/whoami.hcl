@@ -1,9 +1,9 @@
 job "whoami" {
   datacenters = ["nbg1"]
-  type = "service"
+  type        = "service"
 
   update {
-    canary = 1
+    canary       = 1
     auto_promote = true
   }
 
@@ -16,7 +16,7 @@ job "whoami" {
     }
 
     service {
-      name = "${NOMAD_JOB_NAME}"
+      name = NOMAD_JOB_NAME
       port = "http"
 
       tags = [
@@ -46,5 +46,3 @@ job "whoami" {
     }
   }
 }
-
-

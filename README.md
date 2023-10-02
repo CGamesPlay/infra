@@ -47,13 +47,13 @@ WireGuard is used to secure communications between cluster nodes. This allows us
    - `ssh-add -L` needs to show at least one key (it will be used as the key for the created instances).
    - `python --version` needs to be 3. `apt install python-is-python3` on Ubuntu.
    - `pip3 install ansible hvac ansible-modules-hashivault`
-2. Run `argc terraform apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
+2. Run `argc infra apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
 3. Run `argc ansible` to apply the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
    - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
    - Optionally, `argc verify` can be used to diagnose some basic issues now and in the future.
 4. Connect to the machine using ssh (use `argc master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer.
-5. Deploy jobs with Nomad. Use `argc deploy`.
-   - This will scan all playbooks in the `nomad` directory and sync the jobs. You can use `argc deploy -- -CD` to see the changes without applying them.
+5. Deploy jobs with Nomad. Use `argc nomad apply`.
+   - This will apply the terraform workspace in the `nomad` directory.
 
 ### Local environment setup
 
@@ -98,9 +98,7 @@ ssh server-master.node.consul
 
 Now that the server is set up, you'll want to start running some jobs on your new cluster. Your first two jobs should be [traefik](./nomad/traefik) and [whoami](./nomad/whoami.disabled), which will allow you to verify that everything is working properly. After that, you can do whatever you like. My [nomad directory](./nomad) has the jobspecs that I am using, which you can use as a baseline for your own.
 
-This repository uses Ansible to configure the jobs. Each directory in `nomad` has a `tasks.yml` which is treated as a list of Ansible tasks. Use `argc deploy --help` to see how to deploy Nomad jobs using the system.
-
-To make working with Vault from Ansible easy, we use the [hashivault](https://terryhowe.github.io/ansible-modules-hashivault/modules/list_of_hashivault_modules.html) Ansible module.
+This repository uses Terraform to configure the jobs. Each directory in `nomad` has a `main.tf` which is includes from the main `nomad/main.tf`. Use `argc nomad --help` to see how to deploy Nomad jobs using the system.
 
 ### Note about storage
 

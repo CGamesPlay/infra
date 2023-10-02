@@ -1,10 +1,9 @@
-[[/* This is jobspec should be rendered with levant. */]]
 job "dashboard" {
   datacenters = ["nbg1"]
-  type = "service"
+  type        = "service"
 
   update {
-    canary = 1
+    canary       = 1
     auto_promote = true
   }
 
@@ -17,13 +16,13 @@ job "dashboard" {
     }
 
     service {
-      name = "${NOMAD_JOB_NAME}"
+      name = NOMAD_JOB_NAME
       port = "http"
 
       tags = [
         "traefik.enable=true",
-        "traefik.http.routers.${NOMAD_JOB_NAME}.tls.certresolver=le",
-        "traefik.http.routers.${NOMAD_JOB_NAME}.rule=Host(`[[ consulKey "traefik/config/domain" ]]`)",
+        "traefik.http.routers.$${NOMAD_JOB_NAME}.tls.certresolver=le",
+        "traefik.http.routers.$${NOMAD_JOB_NAME}.rule=Host(`${base_domain}`)",
       ]
 
       check {
@@ -47,9 +46,20 @@ job "dashboard" {
       }
 
       template {
-        destination = "local/site/index.html"
-        data = <<-EOF
-        [[ fileContents "index.html" ]]
+        change_mode = "noop"
+        destination = "$${NOMAD_TASK_DIR}/site/index.html"
+        data        = <<-EOF
+        ${index_html}
+        EOF
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "$${NOMAD_TASK_DIR}/site/ca.crt"
+        data        = <<-EOF
+        {{- with secret "pki/cert/ca" -}}
+        {{- .Data.certificate -}}
+        {{- end -}}
         EOF
       }
 

@@ -26,7 +26,7 @@ job "traefik" {
     }
 
     service {
-      name = "${NOMAD_JOB_NAME}"
+      name = NOMAD_JOB_NAME
       port = "https"
 
       check {
@@ -86,7 +86,7 @@ job "traefik" {
           # Enable Consul Catalog configuration backend.
           [providers.consulCatalog]
           exposedByDefault = false
-          defaultRule = "Host(`{{`{{normalize .Name}}`}}.{{ key "traefik/config/domain" }}`)"
+          defaultRule = "Host(`{{`{{normalize .Name}}`}}.${base_domain}`)"
 
           [providers.consulCatalog.endpoint]
           address = "127.0.0.1:8501"
@@ -115,28 +115,28 @@ job "traefik" {
         data        = <<-EOF
         [tcp.routers.nomad]
         service = "nomad"
-        rule = "HostSNI(`nomad.{{ key "traefik/config/domain" }}`)"
+        rule = "HostSNI(`nomad.${base_domain}`)"
         tls.passthrough = true
 
-        [["[["]]tcp.services.nomad.loadBalancer.servers]]
+        [[tcp.services.nomad.loadBalancer.servers]]
         address = "127.0.0.1:4646"
 
         [tcp.routers.vault]
         service = "vault"
-        rule = "HostSNI(`vault.{{ key "traefik/config/domain" }}`)"
+        rule = "HostSNI(`vault.${base_domain}`)"
         tls.passthrough = true
 
-        [["[["]]tcp.services.vault.loadBalancer.servers]]
+        [[tcp.services.vault.loadBalancer.servers]]
         address = "127.0.0.1:8200"
 
         {{ if keyExists "traefik/config/tunnel" }}
         [http.routers.tunnel]
         entryPoints = [ "https" ]
         service = "tunnel"
-        rule = "Host(`tunnel.{{ key "traefik/config/domain" }}`)"
+        rule = "Host(`tunnel.${base_domain}`)"
         tls.certresolver = "le"
 
-        [["[["]]http.services.tunnel.loadBalancer.servers]]
+        [[http.services.tunnel.loadBalancer.servers]]
         url = "http://{{ key "traefik/config/tunnel" }}/"
         {{ end }}
         EOF

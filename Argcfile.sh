@@ -11,19 +11,19 @@ ansible_variables=(
 # @cmd Ensure that all cloud resources are up to date
 #
 # Example: preview infrastructure changes
-#   argc terraform plan
+#   argc infra plan
 #
 # Example: apply infrastructure changes
-#   argc terraform apply
+#   argc infra apply
 #
 # Example: see terraform usage
-#   argc terraform -- --help
+#   argc infra -- --help
 #
 # @arg    args+                          Arguments to terraform
 # @option -e --environment=prod-control  Environment to use
-terraform() {
+infra() {
 	export TF_WORKSPACE=${argc_environment:?}
-	echo terraform -chdir=terraform "${argc_args[0]:?}" -var-file="${TF_WORKSPACE}.tfvars" "${argc_args[@]:1}"
+	exec terraform -chdir=terraform "${argc_args[0]:?}" -var-file="${TF_WORKSPACE}.tfvars" "${argc_args[@]:1}"
 }
 
 # @cmd Get the IP address of master.node.consul
@@ -77,17 +77,23 @@ env() {
 	EOF
 }
 
-# @cmd Deploy one or more jobs to the active environment
+# @cmd Ensure that all nomad jobs are up to date
 #
-# Example: preview a deploy of all jobs
-#   argc deploy -CD
+# Example: preview infrastructure changes
+#   argc nomad plan
 #
-# Example: deploy only the "traefik" and "backup" jobs
-#   argc deploy -t traefik.backup
-# @arg    args*  Arguments to ansible
-deploy() {
-	exec ansible-playbook -i localhost, --connection=local ansible/playbooks/nomad-jobs.yml ${argc_args+"${argc_args[@]}"}
+# Example: apply infrastructure changes
+#   argc nomad apply
+#
+# Example: see terraform usage
+#   argc nomad -- --help
+#
+# @arg    subcommand  Terraform subcommand
+# @arg    args~       Additional arguments to terraform
+nomad() {
+	exec terraform -chdir=nomad "${argc_subcommand:-}" ${argc_args+"${argc_args[@]}"}
 }
+
 
 # @cmd Add Consul DNS to system settings
 setup-dns() {
