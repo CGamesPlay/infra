@@ -55,7 +55,7 @@
 </section>
 <footer class="footer">
   <div class="content has-text-centered">
-    <p>In order to access these dashboards, you need to be connected to the WireGuard VPN, have configured the system DNS, and added <a href="data:application/x-x509-ca-cert;charset=utf-8;base64,{{ with secret "pki/cert/ca" }}{{ base64URLEncode .Data.certificate }}{{ end }}" download="ca.crt">the Vault certificate authority</a> to your browser's trusted store.</p>
+    <p>In order to access these dashboards, you need to be connected to the WireGuard VPN, have configured the system DNS, and added <a href="ca.crt" download>the Vault certificate authority</a> to your browser's trusted store.</p>
   </div>
 </footer>
 </body>
