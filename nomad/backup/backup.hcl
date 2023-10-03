@@ -1,7 +1,7 @@
 job "backup" {
   datacenters = ["nbg1"]
-  type = "batch"
-  priority = 90
+  type        = "batch"
+  priority    = 90
 
   periodic {
     // Run once a month at midnight in the morning of the first of the month
@@ -14,7 +14,7 @@ job "backup" {
     }
 
     ephemeral_disk {
-      sticky = true
+      sticky  = true
       migrate = true
     }
 
@@ -22,7 +22,7 @@ job "backup" {
       driver = "raw_exec"
       config {
         command = "bash"
-        args = ["secrets/do-backup.sh"]
+        args    = ["secrets/do-backup.sh"]
       }
 
       vault {
@@ -31,8 +31,8 @@ job "backup" {
 
       template {
         destination = "secrets/env"
-        env = true
-        data = <<-EOF
+        env         = true
+        data        = <<-EOF
           {{ with secret "kv/backup/repository" }}
           AWS_ACCESS_KEY_ID={{ .Data.aws_access_key_id }}
           AWS_SECRET_ACCESS_KEY={{ .Data.aws_secret_access_key }}
@@ -45,18 +45,16 @@ job "backup" {
 
       template {
         destination = "local/excludes.txt"
-        data = <<-EOF
+        data        = <<-EOF
           # Ignore allocation ephemeral storage
           /opt/nomad/alloc
-          # Ignore docker registry (can be rebuilt if necessary)
-          /opt/registry
           EOF
       }
 
       template {
         destination = "secrets/do-backup.sh"
-        perms = "755"
-        data = <<-EOF
+        perms       = "755"
+        data        = <<-EOF
         #!/bin/bash
         exec 2>&1
         set -uexo pipefail
