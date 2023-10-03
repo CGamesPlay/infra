@@ -83,5 +83,6 @@ module "dashboard" {
 }
 
 module "seafile" {
-  source = "./seafile"
+  source     = "./seafile"
+  depends_on = [module.democratic_csi]
 }

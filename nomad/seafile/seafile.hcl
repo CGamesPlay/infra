@@ -4,6 +4,13 @@ job "seafile" {
   priority    = 60
 
   group "main" {
+    volume "data" {
+      type            = "csi"
+      source          = "seafile"
+      access_mode     = "single-node-writer"
+      attachment_mode = "file-system"
+    }
+
     network {
       mode = "bridge"
       port "http" {
@@ -22,10 +29,11 @@ job "seafile" {
           username = "seafile"
           password = "zjkmid6rQibdZ=uJMuWS"
         }
+      }
 
-        volumes = [
-          "/opt/seafile/data:/shared",
-        ]
+      volume_mount {
+        volume      = "data"
+        destination = "/shared"
       }
 
       resources {
@@ -56,10 +64,12 @@ job "seafile" {
       driver = "docker"
       config {
         image = "mariadb:10.5"
+        args  = ["--datadir=/shared/mariadb"]
+      }
 
-        volumes = [
-          "/opt/seafile/mysql:/var/lib/mysql",
-        ]
+      volume_mount {
+        volume      = "data"
+        destination = "/shared"
       }
 
       env {

@@ -1,6 +1,7 @@
 job "democratic-csi" {
   datacenters = ["nbg1"]
   type        = "system"
+  priority    = 90
 
   group "controller" {
     volume "host-volume" {
