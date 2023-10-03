@@ -8,6 +8,12 @@ client {
   cni_path = "/usr/local/cni/bin"
   cni_config_dir = "/etc/cni.d"
   network_interface = "wg0"
+
+  host_volume "csi_storage_master" {
+    # This volume is reshared by democratic-csi into all the other node-local
+    # volumes.
+    path = "/opt/csi"
+  }
 }
 
 plugin "docker" {
@@ -23,6 +29,8 @@ plugin "docker" {
     gc {
       image_delay = "12h"
     }
+
+    allow_privileged = true
   }
 }
 

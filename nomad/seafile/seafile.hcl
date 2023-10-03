@@ -1,7 +1,7 @@
 job "seafile" {
   datacenters = ["nbg1"]
-  type = "service"
-  priority = 60
+  type        = "service"
+  priority    = 60
 
   group "main" {
     network {
@@ -29,11 +29,12 @@ job "seafile" {
       }
 
       resources {
-        memory = 512
+        memory     = 512
+        memory_max = 2048
       }
 
       service {
-        name = "${NOMAD_JOB_NAME}"
+        name = NOMAD_JOB_NAME
         port = "http"
 
         tags = [
@@ -42,10 +43,10 @@ job "seafile" {
         ]
 
         check {
-          type = "http"
-          path = "/api2/ping/"
-          interval = "30s"
-          timeout = "2s"
+          type                     = "http"
+          path                     = "/api2/ping/"
+          interval                 = "30s"
+          timeout                  = "2s"
           failures_before_critical = 3
         }
       }
@@ -63,7 +64,7 @@ job "seafile" {
 
       env {
         MYSQL_ALLOW_EMPTY_PASSWORD = true
-        MYSQL_LOG_CONSOLE = true
+        MYSQL_LOG_CONSOLE          = true
       }
 
       resources {
@@ -71,7 +72,7 @@ job "seafile" {
       }
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = true
       }
     }
@@ -79,7 +80,7 @@ job "seafile" {
     task "memcached" {
       driver = "docker"
       config {
-        image = "memcached:1.5.6"
+        image      = "memcached:1.5.6"
         entrypoint = ["memcached", "-m", "60"]
       }
 
@@ -88,7 +89,7 @@ job "seafile" {
       }
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = true
       }
     }

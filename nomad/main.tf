@@ -48,6 +48,21 @@ variable "base_domain" {
   default     = "example.com"
 }
 
+resource "nomad_scheduler_config" "config" {
+  scheduler_algorithm             = "binpack"
+  memory_oversubscription_enabled = true
+  preemption_config = {
+    batch_scheduler_enabled    = false
+    service_scheduler_enabled  = false
+    sysbatch_scheduler_enabled = false
+    system_scheduler_enabled   = false
+  }
+}
+
+module "democratic_csi" {
+  source = "./democratic_csi"
+}
+
 module "backup" {
   source = "./backup"
 }

@@ -43,11 +43,11 @@
         repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
     - apt:
         name:
-          - docker.io=20.10.21-0ubuntu1~22.04.3
-          - vault=1.13.2-1
-          - consul=1.13.1-1
-          - consul-template=0.29.2-1
-          - nomad=1.5.3-1
+          - docker.io=24.0.5-0ubuntu1~22.04.1
+          - vault=1.15.0-1
+          - consul=1.16.2-1
+          - consul-template=0.33.0-1
+          - nomad=1.6.2-1
           - wireguard
           - net-tools
           - jq
