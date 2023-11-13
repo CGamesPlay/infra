@@ -41,3 +41,7 @@ Several related issues, dating back to 2016. Seems like HashiCorp doesn't care a
 - [Support rerunning of the same job via force flag #1576](https://github.com/hashicorp/nomad/issues/1576)
 
 Note the "Start Job" button in the UI is completely broken in 1.6.2, but it's possible to "revert" to an older verison of the job which doesn't have the "stop" flag set. [#18547](https://github.com/hashicorp/nomad/issues/18547).
+
+## Recovering after a Traefik failed deployment
+
+In case Traefik is deployed with a configuration that disables public access to Vault and Nomad, the Terraform scripts will no longer be able to deploy. The easiest way to recover is to connect to the VPN, open [Nomad](https://nomad.service.consul:4646/), locate the Traefik job, and roll back to a known-good version. If this is not possible, you can manually render and deploy the Traefik nomad job.

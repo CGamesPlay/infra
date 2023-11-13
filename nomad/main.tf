@@ -86,3 +86,8 @@ module "seafile" {
   source     = "./seafile"
   depends_on = [module.democratic_csi]
 }
+
+module "lobechat" {
+  source     = "./lobechat"
+  depends_on = [module.democratic_csi]
+}
