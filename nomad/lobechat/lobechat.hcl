@@ -1,3 +1,8 @@
+variable "image_tag" {
+  description = "Docker tag to use for lobehub/lobe-chat"
+  default     = "v0.123.2"
+}
+
 job "lobechat" {
   datacenters = ["nbg1"]
   type        = "service"
@@ -31,7 +36,7 @@ job "lobechat" {
     task "server" {
       driver = "docker"
       config {
-        image = "lobehub/lobe-chat"
+        image = "lobehub/lobe-chat:${var.image_tag}"
         ports = ["http"]
       }
 
