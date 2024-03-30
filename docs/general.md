@@ -4,13 +4,10 @@ This checklist is used to verify that everything is operating correctly. It's go
 
 - [ ] VPN connects.
 - [ ] SSH connects.
-- [ ] `robo production verify` reports no problems.
+- [ ] `argc ansible` reports no changes.
+- [ ] [Vault](https://vault.service.consul:8200/ui/) is unsealed.
 - [ ] [Nomad dashboard](https://nomad.service.consul:4646) is accessible.
-- [ ] [Consul](https://consul.service.consul:8501/ui/nbg1/services) reports running services:
-  - [ ] Joplin
-  - [ ] Seafile
-  - [ ] Chess2Online
-  - [ ] Launa
+- [ ] [Consul](https://consul.service.consul:8501/ui/nbg1/services) reports running services
 
 ## Recovering Vault after crash
 
@@ -18,7 +15,7 @@ If Vault is unsealed but we get errors like "**local node not active but active 
 
 1. Place the following file in `/opt/vault/raft/raft/peers.json`.
 2. Restart Vault.
-3. Unseal vault with `vault operator unseal`
+3. Unseal vault with `VAULT_ADDR=https://172.30.0.1:8200 vault operator unseal`
 4. Verify everything is good with `vault operator raft list-peers`
 
 ```json
@@ -45,3 +42,15 @@ Note the "Start Job" button in the UI is completely broken in 1.6.2, but it's po
 ## Recovering after a Traefik failed deployment
 
 In case Traefik is deployed with a configuration that disables public access to Vault and Nomad, the Terraform scripts will no longer be able to deploy. The easiest way to recover is to connect to the VPN, open [Nomad](https://nomad.service.consul:4646/), locate the Traefik job, and roll back to a known-good version. If this is not possible, you can manually render and deploy the Traefik nomad job.
+
+## Recovering lost CSI volumes
+
+When Nomad starts failing to place allocations with a cryptic "Constraint did not meet topology requirement" error, it could be because the CSI volume isn't able to activate. When this happened last time, I resolved it by:
+
+1. Stopping the democratic-csi job
+2. Renaming the volumes in `/opt/csi/v/*` out of the way
+3. Deleting the volumes in Nomad (set `count = 0` in the terraform files)
+4. Recreating everything in Nomad
+5. Stopping the jobs which are using volumes
+6. Deleting the newly created volumes and renaming the old ones back
+7. Restarting the jobs that need volumes

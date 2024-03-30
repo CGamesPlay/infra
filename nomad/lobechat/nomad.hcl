@@ -1,6 +1,6 @@
 variable "image_tag" {
   description = "Docker tag to use for lobehub/lobe-chat"
-  default     = "v0.123.2"
+  default     = "v0.145.4"
 }
 
 job "lobechat" {
@@ -50,6 +50,7 @@ job "lobechat" {
         data        = <<-EOF
           {{ with secret "kv/lobechat/env" }}
           OPENAI_API_KEY={{ .Data.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY={{ .Data.ANTHROPIC_API_KEY }}
           ACCESS_CODE={{ .Data.ACCESS_CODE }}
           {{ end }}
           EOF

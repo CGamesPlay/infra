@@ -16,7 +16,7 @@ job "democratic-csi" {
     task "controller" {
       driver = "docker"
       config {
-        image = "democraticcsi/democratic-csi:v1.8.3"
+        image = "democraticcsi/democratic-csi:v1.9.0"
         ports = ["grpc"]
         args = [
           "--csi-version=1.2.0",
@@ -47,7 +47,7 @@ job "democratic-csi" {
         destination = "${NOMAD_TASK_DIR}/driver-config-file.yaml"
         data        = <<-EOF
         driver: local-hostpath
-        instance_id:
+        instance_id: master
         local-hostpath:
           # generally shareBasePath and controllerBasePath should be the same for this
           # driver, this path should be mounted into the csi-driver container

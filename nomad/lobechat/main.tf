@@ -8,5 +8,5 @@ resource "vault_policy" "lobechat" {
 }
 
 resource "nomad_job" "lobechat" {
-  jobspec = file("${path.module}/lobechat.hcl")
+  jobspec = file("${path.module}/nomad.hcl")
 }

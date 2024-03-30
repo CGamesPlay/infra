@@ -12,5 +12,5 @@ resource "nomad_csi_volume" "seafile" {
 }
 
 resource "nomad_job" "seafile" {
-  jobspec = file("${path.module}/seafile.hcl")
+  jobspec = file("${path.module}/nomad.hcl")
 }
