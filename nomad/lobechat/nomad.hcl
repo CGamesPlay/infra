@@ -1,6 +1,6 @@
 variable "image_tag" {
   description = "Docker tag to use for lobehub/lobe-chat"
-  default     = "v1.1.3"
+  default     = "v1.1.13"
 }
 
 job "lobechat" {
@@ -53,6 +53,9 @@ job "lobechat" {
           ANTHROPIC_API_KEY={{ .Data.ANTHROPIC_API_KEY }}
           ACCESS_CODE={{ .Data.ACCESS_CODE }}
           {{ end }}
+
+          OPENAI_MODEL_LIST=-gpt-4-turbo
+          ENABLED_OLLAMA=0
           EOF
       }
 
