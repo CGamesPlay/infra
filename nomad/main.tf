@@ -59,10 +59,6 @@ resource "nomad_scheduler_config" "config" {
   }
 }
 
-module "democratic_csi" {
-  source = "./democratic_csi"
-}
-
 module "backup" {
   source = "./backup"
 }
@@ -83,11 +79,9 @@ module "dashboard" {
 }
 
 module "seafile" {
-  source     = "./seafile"
-  depends_on = [module.democratic_csi]
+  source = "./seafile"
 }
 
 module "lobechat" {
-  source     = "./lobechat"
-  depends_on = [module.democratic_csi]
+  source = "./lobechat"
 }

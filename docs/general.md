@@ -42,15 +42,3 @@ Note the "Start Job" button in the UI is completely broken in 1.6.2, but it's po
 ## Recovering after a Traefik failed deployment
 
 In case Traefik is deployed with a configuration that disables public access to Vault and Nomad, the Terraform scripts will no longer be able to deploy. The easiest way to recover is to connect to the VPN, open [Nomad](https://nomad.service.consul:4646/), locate the Traefik job, and roll back to a known-good version. If this is not possible, you can manually render and deploy the Traefik nomad job.
-
-## Recovering lost CSI volumes
-
-When Nomad starts failing to place allocations with a cryptic "Constraint did not meet topology requirement" error, it could be because the CSI volume isn't able to activate. When this happened last time, I resolved it by:
-
-1. Stopping the democratic-csi job
-2. Renaming the volumes in `/opt/csi/v/*` out of the way
-3. Deleting the volumes in Nomad (set `count = 0` in the terraform files)
-4. Recreating everything in Nomad
-5. Stopping the jobs which are using volumes
-6. Deleting the newly created volumes and renaming the old ones back
-7. Restarting the jobs that need volumes
