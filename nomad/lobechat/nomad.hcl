@@ -1,6 +1,6 @@
 variable "image_tag" {
   description = "Docker tag to use for lobehub/lobe-chat"
-  default     = "v1.1.13"
+  default     = "v1.6.8"
 }
 
 job "lobechat" {
