@@ -3,7 +3,7 @@ variable "base_domain" {
 }
 
 resource "nomad_job" "traefik" {
-  jobspec = templatefile("${path.module}/traefik.hcl.tpl", {
+  jobspec = templatefile("${path.module}/nomad.hcl.tpl", {
     base_domain = var.base_domain
   })
 }
