@@ -63,6 +63,23 @@ module "backup" {
   source = "./backup"
 }
 
+module "dashboard" {
+  source      = "./dashboard"
+  base_domain = var.base_domain
+}
+
+module "lobechat" {
+  source = "./lobechat"
+}
+
+module "open-webui" {
+  source = "./open-webui"
+}
+
+module "seafile" {
+  source = "./seafile"
+}
+
 module "traefik" {
   source      = "./traefik"
   base_domain = var.base_domain
@@ -71,17 +88,4 @@ module "traefik" {
 module "whoami" {
   source = "./whoami"
   count  = 0
-}
-
-module "dashboard" {
-  source      = "./dashboard"
-  base_domain = var.base_domain
-}
-
-module "seafile" {
-  source = "./seafile"
-}
-
-module "lobechat" {
-  source = "./lobechat"
 }

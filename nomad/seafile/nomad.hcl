@@ -29,7 +29,7 @@ job "seafile" {
       }
 
       resources {
-        memory     = 512
+        memory     = 768
         memory_max = 2048
       }
 

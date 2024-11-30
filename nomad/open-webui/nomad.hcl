@@ -1,9 +1,9 @@
 variable "image_tag" {
-  description = "Docker tag to use for lobehub/lobe-chat"
-  default     = "v1.34.0"
+  description = "Docker tag to use for open-webui/open-webui"
+  default     = "0.4.6"
 }
 
-job "lobechat" {
+job "open-webui" {
   datacenters = ["nbg1"]
   type        = "service"
   priority    = 50
@@ -12,7 +12,7 @@ job "lobechat" {
     network {
       mode = "bridge"
       port "http" {
-        to = 3210
+        to = 8080
       }
     }
 
@@ -27,41 +27,51 @@ job "lobechat" {
 
       check {
         type     = "http"
-        path     = "/"
+        path     = "/health"
         interval = "30s"
-        timeout  = "2s"
+        timeout  = "10s"
       }
     }
 
     task "server" {
       driver = "docker"
       config {
-        image = "lobehub/lobe-chat:${var.image_tag}"
+        image = "ghcr.io/open-webui/open-webui:${var.image_tag}"
         ports = ["http"]
+
+        volumes = [
+          "/opt/open-webui:/app/backend/data"
+        ]
       }
 
       vault {
-        policies = ["lobechat"]
+        policies = ["open-webui"]
       }
 
       template {
         destination = "secrets/env"
         env         = true
         data        = <<-EOF
-          {{ with secret "kv/lobechat/env" }}
+          {{ with secret "kv/open-webui/env" }}
+          WEBUI_SECRET_KEY={{ .Data.WEBUI_SECRET_KEY }}
+          WEBUI_URL=https://${NOMAD_JOB_NAME}.cluster.cgamesplay.com/
+          ENABLE_OLLAMA_API=False
           OPENAI_API_KEY={{ .Data.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY={{ .Data.ANTHROPIC_API_KEY }}
-          ACCESS_CODE={{ .Data.ACCESS_CODE }}
-          {{ end }}
+          RAG_EMBEDDING_ENGINE=openai
+          AUDIO_STT_ENGINE=openai
 
-          OPENAI_MODEL_LIST=-gpt-4-turbo
-          ENABLED_OLLAMA=0
+          # Doesn't work in version 0.4.6
+          #ENABLE_RAG_WEB_SEARCH=True
+          #RAG_WEB_SEARCH_ENGINE=serply
+          #SERPLY_API_KEY={{ .Data.SERPLY_API_KEY }}
+          {{ end }}
           EOF
       }
 
       resources {
-        memory     = 64
-        memory_max = 256
+        memory     = 512
+        memory_max = 1024
       }
     }
   }
