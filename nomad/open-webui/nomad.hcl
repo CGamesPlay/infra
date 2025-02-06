@@ -1,6 +1,6 @@
 variable "image_tag" {
   description = "Docker tag to use for open-webui/open-webui"
-  default     = "0.4.6"
+  default     = "0.5.10"
 }
 
 job "open-webui" {
@@ -54,17 +54,21 @@ job "open-webui" {
         data        = <<-EOF
           {{ with secret "kv/open-webui/env" }}
           WEBUI_SECRET_KEY={{ .Data.WEBUI_SECRET_KEY }}
+          ANTHROPIC_API_KEY={{ .Data.ANTHROPIC_API_KEY }}
+          # All of the following are PersistentConfig, so they theoretically
+          # have no effect on existing containers.
           WEBUI_URL=https://${NOMAD_JOB_NAME}.cluster.cgamesplay.com/
           ENABLE_OLLAMA_API=False
           OPENAI_API_KEY={{ .Data.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY={{ .Data.ANTHROPIC_API_KEY }}
           RAG_EMBEDDING_ENGINE=openai
           AUDIO_STT_ENGINE=openai
 
-          # Doesn't work in version 0.4.6
-          #ENABLE_RAG_WEB_SEARCH=True
-          #RAG_WEB_SEARCH_ENGINE=serply
-          #SERPLY_API_KEY={{ .Data.SERPLY_API_KEY }}
+          ENABLE_RAG_WEB_SEARCH=True
+          RAG_WEB_SEARCH_ENGINE=google_pse
+          RAG_WEB_SEARCH_RESULT_COUNT=3
+          RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
+          GOOGLE_PSE_API_KEY={{ .Data.GOOGLE_PSE_API_KEY }}
+          GOOGLE_PSE_ENGINE_ID={{ .Data.GOOGLE_PSE_ENGINE_ID }}
           {{ end }}
           EOF
       }
