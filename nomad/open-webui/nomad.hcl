@@ -1,6 +1,6 @@
 variable "image_tag" {
   description = "Docker tag to use for open-webui/open-webui"
-  default     = "0.5.10"
+  default     = "0.5.18"
 }
 
 job "open-webui" {

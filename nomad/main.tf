@@ -70,10 +70,15 @@ module "dashboard" {
 
 module "lobechat" {
   source = "./lobechat"
+  count = 0
 }
 
 module "open-webui" {
   source = "./open-webui"
+}
+
+module "librechat" {
+  source = "./librechat"
 }
 
 module "seafile" {
