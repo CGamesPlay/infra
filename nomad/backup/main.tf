@@ -8,5 +8,5 @@ resource "vault_policy" "backup" {
 }
 
 resource "nomad_job" "backup" {
-  jobspec = file("${path.module}/backup.hcl")
+  jobspec = file("${path.module}/nomad.hcl")
 }

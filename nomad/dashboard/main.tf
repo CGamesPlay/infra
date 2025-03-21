@@ -7,7 +7,7 @@ variable "base_domain" {
 }
 
 resource "nomad_job" "dashboard" {
-  jobspec = templatefile("${path.module}/dashboard.hcl.tpl", {
+  jobspec = templatefile("${path.module}/nomad.hcl.tpl", {
     base_domain = var.base_domain
     index_html  = data.local_file.index_html.content
   })
