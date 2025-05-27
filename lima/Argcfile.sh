@@ -24,7 +24,12 @@ create() {
 		--set '.additionalDisks += [{"name": "'"$argc_cluster"'", "format": false}]'
 	limactl start "$argc_cluster"
 	cat bootstrap.sh | limactl shell "$argc_cluster" sudo sh
+
 	export KUBECONFIG="$HOME/.lima/$argc_cluster/copied-from-guest/kubeconfig.yaml"
+	kubectl create namespace terraform
+	terraform init
+	terraform apply -target=module.cluster.helm_release.traefik -auto-approve
+	terraform apply -auto-approve
 }
 
 # @cmd Delete the cluster
