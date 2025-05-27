@@ -1,7 +1,11 @@
+locals {
+  authelia_middleware = "admin-authelia@kubernetescrd"
+}
+
 resource "kubernetes_deployment" "authelia" {
   metadata {
     name      = "authelia"
-    namespace = kubernetes_namespace.authelia.metadata[0].name
+    namespace = kubernetes_namespace.admin.metadata[0].name
   }
   wait_for_rollout = false
   spec {
@@ -24,7 +28,7 @@ resource "kubernetes_deployment" "authelia" {
           image = "docker.io/authelia/authelia:latest"
           env_from {
             secret_ref {
-              name = kubernetes_secret.authelia_secret.metadata[0].name
+              name = kubernetes_secret.authelia.metadata[0].name
             }
           }
           volume_mount {
@@ -48,7 +52,7 @@ resource "kubernetes_deployment" "authelia" {
         volume {
           name = "config"
           config_map {
-            name = kubernetes_config_map.authelia_config.metadata[0].name
+            name = kubernetes_config_map.authelia.metadata[0].name
           }
         }
         volume {
@@ -62,16 +66,10 @@ resource "kubernetes_deployment" "authelia" {
   }
 }
 
-resource "kubernetes_namespace" "authelia" {
+resource "kubernetes_secret" "authelia" {
   metadata {
-    name = "authelia"
-  }
-}
-
-resource "kubernetes_secret" "authelia_secret" {
-  metadata {
-    generate_name = "authelia-secret-"
-    namespace     = kubernetes_namespace.authelia.metadata[0].name
+    generate_name = "authelia-"
+    namespace     = kubernetes_namespace.admin.metadata[0].name
   }
   immutable = true
 
@@ -82,10 +80,10 @@ resource "kubernetes_secret" "authelia_secret" {
   }
 }
 
-resource "kubernetes_config_map" "authelia_config" {
+resource "kubernetes_config_map" "authelia" {
   metadata {
-    generate_name = "authelia-config-"
-    namespace     = kubernetes_namespace.authelia.metadata[0].name
+    generate_name = "authelia-"
+    namespace     = kubernetes_namespace.admin.metadata[0].name
   }
   immutable = true
 
@@ -131,7 +129,7 @@ resource "kubernetes_config_map" "authelia_config" {
 resource "kubernetes_persistent_volume_claim" "authelia" {
   metadata {
     name      = "authelia"
-    namespace = kubernetes_namespace.authelia.metadata[0].name
+    namespace = kubernetes_namespace.admin.metadata[0].name
   }
   wait_until_bound = false
   spec {
@@ -148,7 +146,7 @@ resource "kubernetes_persistent_volume_claim" "authelia" {
 resource "kubernetes_service" "authelia" {
   metadata {
     name      = "authelia"
-    namespace = kubernetes_namespace.authelia.metadata[0].name
+    namespace = kubernetes_namespace.admin.metadata[0].name
   }
   spec {
     selector = {
@@ -163,7 +161,7 @@ resource "kubernetes_service" "authelia" {
 resource "kubernetes_ingress_v1" "authelia" {
   metadata {
     name      = "authelia"
-    namespace = kubernetes_namespace.authelia.metadata[0].name
+    namespace = kubernetes_namespace.admin.metadata[0].name
   }
   spec {
     rule {
@@ -188,11 +186,11 @@ resource "kubernetes_manifest" "authelia_middleware" {
     kind       = "Middleware"
     metadata = {
       name      = "authelia"
-      namespace = kubernetes_namespace.authelia.metadata[0].name
+      namespace = kubernetes_namespace.admin.metadata[0].name
     }
     spec = {
       forwardAuth = {
-        address             = "http://authelia.${kubernetes_namespace.authelia.metadata[0].name}.svc.cluster.local:9091/api/authz/forward-auth"
+        address             = "http://authelia.${kubernetes_namespace.admin.metadata[0].name}.svc.cluster.local:9091/api/authz/forward-auth"
         authResponseHeaders = ["Remote-User", "Remote-Groups", "Remote-Name", "Remote-Email"]
       }
     }

@@ -76,7 +76,7 @@ resource "kubernetes_ingress_v1" "dashboard" {
   metadata {
     name = "dashboard"
     annotations = {
-      "traefik.ingress.kubernetes.io/router.middlewares" = "authelia-authelia@kubernetescrd"
+      "traefik.ingress.kubernetes.io/router.middlewares" = local.authelia_middleware
     }
   }
   spec {

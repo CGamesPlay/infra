@@ -26,6 +26,12 @@ variable "verbose" {
   default     = false
 }
 
+resource "kubernetes_namespace" "admin" {
+  metadata {
+    name = "admin"
+  }
+}
+
 resource "null_resource" "bootstrap" {
   depends_on = [helm_release.traefik]
 }
