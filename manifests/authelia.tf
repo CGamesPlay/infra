@@ -31,6 +31,10 @@ resource "kubernetes_deployment" "authelia" {
             name       = "config"
             mount_path = "/config"
           }
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/lib"
+          }
           resources {
             requests = {
               cpu    = "200m"
@@ -45,6 +49,12 @@ resource "kubernetes_deployment" "authelia" {
           name = "config"
           config_map {
             name = kubernetes_config_map.authelia_config.metadata[0].name
+          }
+        }
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.authelia.metadata[0].name
           }
         }
       }
@@ -99,10 +109,10 @@ resource "kubernetes_config_map" "authelia_config" {
             expiration: '1 day'
       storage:
         local:
-          path: '/tmp/db.sqlite3'
+          path: '/var/lib/db.sqlite3'
       notifier:
         filesystem:
-          filename: '/tmp/notification.txt'
+          filename: '/var/lib/notification.txt'
       EOF
     "users.yml"         = <<-EOF
       users:
@@ -115,6 +125,23 @@ resource "kubernetes_config_map" "authelia_config" {
           groups:
             - 'admin'
       EOF
+  }
+}
+
+resource "kubernetes_persistent_volume_claim" "authelia" {
+  metadata {
+    name      = "authelia"
+    namespace = kubernetes_namespace.authelia.metadata[0].name
+  }
+  wait_until_bound = false
+  spec {
+    storage_class_name = "local-path"
+    access_modes       = ["ReadWriteOnce"]
+    resources {
+      requests = {
+        storage = "1Gi"
+      }
+    }
   }
 }
 

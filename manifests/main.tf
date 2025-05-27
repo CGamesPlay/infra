@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "3.2.4"
+    }
   }
 }
 
@@ -20,4 +24,8 @@ variable "verbose" {
   type        = bool
   description = "Enable verbose logging for core services"
   default     = false
+}
+
+resource "null_resource" "bootstrap" {
+  depends_on = [helm_release.traefik]
 }

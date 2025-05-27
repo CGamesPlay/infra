@@ -18,8 +18,8 @@ echo "data $BLOCK_DEVICE none noauto,headless=true" >>/etc/crypttab
 systemctl daemon-reload
 mount "/var/opt"
 
-mkdir /var/opt/k3s
-chmod 700 /var/opt/k3s
+mkdir /var/opt/k3s /var/opt/pvc
+chmod 700 /var/opt/k3s /var/opt/pvc
 cat >/var/opt/k3s/encryption.yml <<EOF
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
@@ -37,8 +37,10 @@ EOF
 mkdir /etc/rancher/k3s/config.yaml.d
 cat >/etc/rancher/k3s/config.yaml.d/local.yml <<-EOF
 kube-apiserver-arg: encryption-provider-config=/var/opt/k3s/encryption.yml
-disable: traefik,metrics-server
+disable: traefik,metrics-server,local-storage
 EOF
+
+sed 's@/var/lib/rancher/k3s/storage@/var/opt/pvc@g' /var/lib/rancher/k3s/server/manifests/local-storage.yaml > /var/lib/rancher/k3s/server/manifests/local-local-storage.yaml
 
 service k3s stop
 mkdir -p /etc/systemd/system/k3s.service.d/

@@ -28,7 +28,7 @@ create() {
 	export KUBECONFIG="$HOME/.lima/$argc_cluster/copied-from-guest/kubeconfig.yaml"
 	kubectl create namespace terraform
 	terraform init
-	terraform apply -target=module.cluster.helm_release.traefik -auto-approve
+	terraform apply -target=module.cluster.null_resource.bootstrap -auto-approve
 	terraform apply -auto-approve
 }
 
