@@ -28,7 +28,7 @@ resource "kubernetes_deployment" "authelia" {
           image = "docker.io/authelia/authelia:latest"
           env_from {
             secret_ref {
-              name = kubernetes_secret.authelia.metadata[0].name
+              name = "authelia"
             }
           }
           volume_mount {
@@ -66,20 +66,6 @@ resource "kubernetes_deployment" "authelia" {
   }
 }
 
-resource "kubernetes_secret" "authelia" {
-  metadata {
-    generate_name = "authelia-"
-    namespace     = kubernetes_namespace.admin.metadata[0].name
-  }
-  immutable = true
-
-  data = {
-    AUTHELIA_SESSION_SECRET                                = "CHANGE ME"
-    AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET = "CHANGE ME"
-    AUTHELIA_STORAGE_ENCRYPTION_KEY                        = "authelia is full of stupid restrictions CHANGE ME"
-  }
-}
-
 resource "kubernetes_config_map" "authelia" {
   metadata {
     generate_name = "authelia-"
@@ -112,17 +98,7 @@ resource "kubernetes_config_map" "authelia" {
         filesystem:
           filename: '/var/lib/notification.txt'
       EOF
-    "users.yml"         = <<-EOF
-      users:
-        authelia:
-          disabled: false
-          displayname: 'Authelia User'
-          # Password is authelia
-          password: '$6$rounds=50000$BpLnfgDsc2WD8F2q$Zis.ixdg9s/UOJYrs56b5QEZFiZECu0qZVNsIYxBaNJ7ucIL.nlxVCT5tqh8KHG8X4tlwCFm5r6NTOZZ5qRFN/'
-          email: 'ry@cgamesplay.com'
-          groups:
-            - 'admin'
-      EOF
+    "users.yml"         = var.authelia_users
   }
 }
 

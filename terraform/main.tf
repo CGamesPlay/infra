@@ -28,7 +28,12 @@ variable "verbose" {
 
 variable "admin_secrets" {
   type        = string
-  description = "Path to the environment's admin-secrets.yml file"
+  description = "Contents of the environment's admin-secrets.yml file"
+}
+
+variable "authelia_users" {
+  type        = string
+  description = "Contents of the environment's authelia-users.yml file"
 }
 
 variable "workloads" {
@@ -48,7 +53,7 @@ resource "kubernetes_namespace" "admin" {
 
 resource "kubernetes_manifest" "admin_secrets" {
   depends_on = [kubernetes_namespace.admin]
-  manifest   = yamldecode(file(var.admin_secrets))
+  manifest   = yamldecode(var.admin_secrets)
 }
 
 module "dashboard" {
