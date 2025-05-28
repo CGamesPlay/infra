@@ -1,3 +1,8 @@
+variable "domain" {
+  type        = string
+  description = "DNS suffix for all domains"
+}
+
 resource "kubernetes_deployment" "whoami" {
   metadata {
     name = "whoami"

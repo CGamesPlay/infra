@@ -1,14 +1,14 @@
 # Personal Cloud IaC
 
-This is the repo I use for [my personal cloud server](https://cgamesplay.com/post/2021/10/27/creating-my-personal-cloud-with-hashicorp/), hosted as a VPS. At the time of writing this document, the system is a single node, therefore the security model is somewhat simpler than a production system and no container storage interfaces need to be configured.
+This is the repo I use for [my personal cloud server](https://cgamesplay.com/post/2021/10/27/creating-my-personal-cloud-with-hashicorp/), hosted as a VPS.
 
 **Features:**
 
-- Single-node [Nomad](https://www.nomadproject.io), [Consul](https://www.consul.io), and [Vault](https://www.vaultproject.io) installation.
-- mTLS configured between all services.
-- [WireGuard](https://www.wireguard.com) used to secure communication between nodes (theoretically, since there's only one node).
-- Access to GUI management portals via WireGuard (presently, the real use of WireGuard).
-- A [variety of Nomad jobs](./nomad) that I've developed. Some highlights:
+- Single-node [K3s](https://k3s.io) installation.
+- Encryption at rest for Kubernetes secrets, etcd, and all container persistent volumes.
+- Atomic upgrades by storing all stateful data on an external volume.
+- Local development via [Lima](https://lima-vm.io) and production deployment via [Hetzner](https://www.hetzner.com).
+- A [variety of workloads](./nomad) that I've deployed. Some highlights:
   - [backup](./nomad/backup) - back up the system to S3 using [Restic](https://restic.net) on a periodic basis.
   - [registry](./nomad/registry) - host a private [Docker](https://www.docker.com/) registry, which can be referenced by other Nomad jobs.
   - [traefik](./nomad/traefik) - expose Nomad jobs to the internet using [Traefik](https://traefik.io/traefik/) and [LetsEncrypt](https://letsencrypt.org).
@@ -167,3 +167,7 @@ The steps required to make this setup "production-ready" are:
 1. Make a Vault cluster of at least 3 nodes, and using a Consul cluster disconnected from the production one, and with more than a single unseal key.
 2. Make a Nomad server cluster of at least 3 nodes, which do not run the Nomad client.
 3. Set up some sort of container storage interface or or networked filesystem to use with the Nomad clients.
+
+## Changes
+
+- The infrastructure underwent a substantial change from Nomad to Kubernetes. The older version can be found [here](https://github.com/CGamesPlay/infra/commit/35120ca5e04795cad60536bc5f91c0c6f89f4d15).

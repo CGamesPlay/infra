@@ -5,12 +5,14 @@ terraform {
   }
 }
 
-resource "kubernetes_manifest" "admin_secrets" {
-  manifest = yamldecode(file("${path.module}/admin-secrets.yml"))
-}
-
 module "cluster" {
-  source  = "../manifests"
-  domain  = "lvh.me"
-  verbose = true
+  source = "../terraform"
+
+  domain        = "lvh.me"
+  verbose       = true
+  admin_secrets = "${path.module}/admin-secrets.yml"
+  workloads = {
+    whoami    = {}
+    dashboard = {}
+  }
 }

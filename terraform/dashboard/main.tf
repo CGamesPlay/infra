@@ -1,3 +1,13 @@
+variable "auth_middleware" {
+  type        = string
+  description = "Name of authelia middleware"
+}
+
+variable "domain" {
+  type        = string
+  description = "DNS suffix for all domains"
+}
+
 resource "kubernetes_deployment" "dashboard" {
   metadata {
     name = "dashboard"
@@ -52,7 +62,7 @@ resource "kubernetes_config_map" "dashboard_files" {
   immutable = true
 
   data = {
-    "index.html" = templatefile("${path.module}/dashboard/index.html.tpl", {
+    "index.html" = templatefile("${path.module}/index.html.tftpl", {
       domain = var.domain
     })
   }
@@ -76,12 +86,12 @@ resource "kubernetes_ingress_v1" "dashboard" {
   metadata {
     name = "dashboard"
     annotations = {
-      "traefik.ingress.kubernetes.io/router.middlewares" = local.authelia_middleware
+      "traefik.ingress.kubernetes.io/router.middlewares" = var.auth_middleware
     }
   }
   spec {
     rule {
-      host = "dashboard.${var.domain}"
+      host = var.domain
       http {
         path {
           backend {

@@ -1,5 +1,5 @@
 locals {
-  authelia_middleware = "admin-authelia@kubernetescrd"
+  auth_middleware = "admin-authelia@kubernetescrd"
 }
 
 resource "kubernetes_deployment" "authelia" {

@@ -40,7 +40,7 @@ resource "helm_release" "traefik" {
   }
   set {
     name  = "ingressRoute.dashboard.middlewares[0].name"
-    value = local.authelia_middleware
+    value = local.auth_middleware
   }
   set {
     name  = "providers.kubernetesCRD.allowCrossNamespace"
