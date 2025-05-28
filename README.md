@@ -7,12 +7,14 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 - Single-node [K3s](https://k3s.io) installation.
 - Encryption at rest for Kubernetes secrets, etcd, and all container persistent volumes.
 - Atomic upgrades by storing all stateful data on an external volume.
-- Local development via [Lima](https://lima-vm.io) and production deployment via [Hetzner](https://www.hetzner.com).
-- A [variety of workloads](./nomad) that I've deployed. Some highlights:
-  - [backup](./nomad/backup) - back up the system to S3 using [Restic](https://restic.net) on a periodic basis.
+- Local development environment via [Lima](https://lima-vm.io)
+- Production deployment via [Hetzner](https://www.hetzner.com).
+  - Automatic SSL certificates via [LetsEncrypt](https://letsencrypt.org).
+
+- A [variety of workloads](./terraform) that I've deployed. Some highlights:
+  - [backup](./terraform/backup) - back up the system using [Restic](https://restic.net) on a periodic basis.
   - [registry](./nomad/registry) - host a private [Docker](https://www.docker.com/) registry, which can be referenced by other Nomad jobs.
-  - [traefik](./nomad/traefik) - expose Nomad jobs to the internet using [Traefik](https://traefik.io/traefik/) and [LetsEncrypt](https://letsencrypt.org).
-  - See the full list [here](./nomad).
+  - See the full list [here](./terraform).
 
 ## System components
 
@@ -20,25 +22,9 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 
 [Terraform](https://www.terraform.io) is used to describe the very simple infrastructure requirements for the cluster. This is primarily intended to be a base for future improvements, if the cluster ever needs to move to a multi-node setup.
 
-**Ansible**
+**SOPS**
 
-[Ansible](https://www.ansible.com) is used to update all configuration files on all nodes. This includes the configuration for Vault, Vault Agent, Consul, Nomad, and WireGuard.
-
-**Nomad**
-
-The master node runs the Nomad server, and all other nodes run Nomad clients. Nomad is responsible for running Traefik and all of the actual workloads. Nomad needs a way to know which machines are Nomad clients, and what workloads they are running, for which it uses Consul.
-
-**Consul**
-
-Consul is used to store configuration and state information about the cluster. Each Nomad workload will register as a service in Consul, which in turn can be used to resolve the IP addresses and port information to reach those services from anywhere in the cluster.
-
-**Vault**
-
-Vault is used to store secrets and issue internal TLS certificates. It is not directly required by Nomad, but Nomad does have a tight Vault integration to allow workloads to securely receive secrets. Vault stores its data in Consul (:warning: in a real production system we would want to use a separate Consul cluster specifically to store Vault data). Vault Agent is a component of Vault which is used to update configuration files which contain secret data, and is used to rotate TLS certificates as well as to manage the encryption keys and tokens used by the other services.
-
-**WireGuard**
-
-WireGuard is used to secure communications between cluster nodes. This allows us to securely keep a private network even between multiple regions and cloud providers.
+[Mozilla SOPS](https://getsops.io/docs/) is used to encrypt Kubernetes secrets in this repository, and combined with [sops-secrets-operator](https://github.com/isindir/sops-secrets-operator/) to decrypt them on the cluster.
 
 ## Installation
 
@@ -93,6 +79,14 @@ If everything works, you should be able to SSH to nodes using their names:
 ```bash
 ssh server-master.node.consul
 ```
+
+## Terraform modules
+
+The terraform directory contains a variety of modules used to control the Kubernetes cluster. The terraform state is also stored in the cluster.
+
+- `lima/` is the root module for local development.
+- `terraform/` is the main module, defining the providers and backend.
+  - `admin/` is the base module which should always be included. It includes Traefik and Authelia.
 
 ## Using Nomad
 
