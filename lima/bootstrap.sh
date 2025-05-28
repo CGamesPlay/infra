@@ -33,7 +33,7 @@ EOF
 mkdir /etc/rancher/k3s/config.yaml.d
 cat >/etc/rancher/k3s/config.yaml.d/local.yml <<-EOF
 kube-apiserver-arg: encryption-provider-config=/var/opt/k3s/encryption.yml
-disable: traefik,metrics-server,local-storage
+disable: metrics-server,local-storage
 EOF
 
 sed 's@/var/lib/rancher/k3s/storage@/var/opt/pvc@g' /var/lib/rancher/k3s/server/manifests/local-storage.yaml > /var/lib/rancher/k3s/server/manifests/local-local-storage.yaml

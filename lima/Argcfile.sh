@@ -59,9 +59,13 @@ create() {
 	# Bootstrap the sops secrets file
 	kubectl create secret generic -n kube-system sops-age-key-file --from-file=key=development.key
 
+	# Wait for Traefik to be installed
+	while ! kubectl -system wait --for condition=established --timeout=10s crd/ingressroutes.traefik.io; do
+		sleep 1
+	done
+
 	# Apply terraform config
 	terraform init
-	terraform apply -target=module.cluster.null_resource.bootstrap -auto-approve
 	terraform apply -auto-approve
 }
 

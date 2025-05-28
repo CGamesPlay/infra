@@ -4,14 +4,6 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.0"
     }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.0"
-    }
-    null = {
-      source  = "hashicorp/null"
-      version = "3.2.4"
-    }
   }
 }
 
@@ -39,10 +31,6 @@ variable "authelia_users" {
 variable "workloads" {
   type        = map(any)
   description = "Enabled workloads and their settings"
-}
-
-resource "null_resource" "bootstrap" {
-  depends_on = [helm_release.traefik]
 }
 
 resource "kubernetes_namespace" "admin" {
