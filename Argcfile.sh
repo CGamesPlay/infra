@@ -1,117 +1,129 @@
 #!/usr/bin/env bash
-# @describe Example Argcfile
-# For more information about argc, see https://github.com/sigoden/argc
+# @describe Cluster management
 
 set -eu
 
-ansible_variables=(
-  -e DC=nbg1 -e wireguard_ip=172.30.0.1 -e traefik_domain="${BASE_DOMAIN:?}"
-)
-
-# @cmd Ensure that all cloud resources are up to date
+# @cmd Prepare a new cluster
 #
-# Example: preview infrastructure changes
-#   argc infra plan
+# Note that --driver and --age must come *before* the environment name
+# and all driver arguments.
 #
-# Example: apply infrastructure changes
-#   argc infra apply
-#
-# Example: see terraform usage
-#   argc infra -- --help
-#
-# @arg    args+                          Arguments to terraform
-# @option -e --environment=prod-control  Environment to use
-infra() {
-	export TF_WORKSPACE=${argc_environment:?}
-	exec terraform -chdir=terraform "${argc_args[0]:?}" -var-file="${TF_WORKSPACE}.tfvars" "${argc_args[@]:1}"
-}
-
-# @cmd Get the IP address of master.node.consul
-# @option -e --environment=prod-control  Environment to use
-master-ip() {
-	export TF_WORKSPACE=${argc_environment:?}
-	terraform -chdir=terraform output -raw master_ip
-	echo
-}
-
-# @cmd Sync all configuration files on the master server
-#
-# Example: preview changes
-#   argc ansible -CD
-#
-# Example: apply changes
-#   argc ansible
-#
-# Example: see ansible usage
-#   argc ansible -- --help
-# @arg    args*  Arguments to ansible
-ansible() {
-	ANSIBLE_CONFIG=ansible/ansible.cfg exec ansible-playbook -u ubuntu -i master.node.consul, "${ansible_variables[@]}" ansible/site.yml ${argc_args+"${argc_args[@]}"}
-}
-
-# @cmd Verify that all services are running
-#
-# Example: see ansible usage
-#   argc ansible -- --help
-# @arg    args*  Arguments to ansible
-verify() {
-	exec ansible-playbook -u ubuntu -i master.node.consul, "${ansible_variables[@]}" ansible/playbooks/verify.yml ${argc_args+"${argc_args[@]}"}
-}
-
-# @cmd Print environment variables to use services
-env() {
-	if ! ping -c 1 master.node.consul >/dev/null 2>&1; then
-		echo "This script requires that WireGuard is connected and DNS is configured." >&2
-		exit 1
+# @arg    name $ENVIRONMENT        Name of the cluster
+# @arg	  args~                    Arguments for driver
+# @option --age $AGE_PUBLIC_KEY    Admin's age public key to use
+# @option --driver![lima|hetzner]  Type of cluster to create
+# @flag   --driver-help            Show help for the driver
+# @meta require-tools sops,terraform,kubectl
+init() {
+	if [ ${argc_driver_help+1} ]; then
+		exec "./driver/${argc_driver:?}" init --help
 	fi
-	export VAULT_ADDR=https://vault.service.consul:8200/
-	VAULT_TOKEN=$(ssh master.node.consul -- sudo cat /root/.vault-token)
-	export VAULT_TOKEN
-	echo "export VAULT_ADDR=$VAULT_ADDR"
-	echo "export VAULT_TOKEN=$VAULT_TOKEN"
+	"./driver/${argc_driver:?}" init --validate-args-only "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
+	argc_age=${argc_age:?}
+	mkdir "env/${argc_name:?}"
+	cd "env/${argc_name:?}"
+	ln -s "../../driver/${argc_driver:?}" driver
+	DISK_PASSWORD=$(head -c 32 /dev/urandom | base64)
+
+	DISK_PASSWORD="$DISK_PASSWORD" ./driver init "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
+
+	CLUSTER_AGE_PUBLIC_KEY=$(cat sops-age-recipient.txt)
+	sops --encrypt --age "${argc_age:-},$CLUSTER_AGE_PUBLIC_KEY" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > admin-secrets.yml <<EOF
+apiVersion: isindir.github.com/v1alpha3
+kind: SopsSecret
+metadata:
+  name: sops-secrets
+  namespace: admin
+spec:
+  # https://github.com/isindir/sops-secrets-operator/blob/147febf336f14bb2546eec020680ce1b2a2e96f1/api/v1alpha3/sopssecret_types.go#L33
+  secretTemplates:
+  - name: authelia
+    stringData:
+      AUTHELIA_SESSION_SECRET: $(head -c 32 /dev/urandom | base64)
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: $(head -c 32 /dev/urandom | base64)
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: $(head -c 32 /dev/urandom | base64)
+EOF
+	cat >authelia-users.yml <<'EOF'
+users:
+  authelia:
+    disabled: false
+    displayname: 'Authelia User'
+    # Password is authelia
+    password: '$6$rounds=50000$BpLnfgDsc2WD8F2q$Zis.ixdg9s/UOJYrs56b5QEZFiZECu0qZVNsIYxBaNJ7ucIL.nlxVCT5tqh8KHG8X4tlwCFm5r6NTOZZ5qRFN/'
+    email: 'ry@cgamesplay.com'
+    groups:
+      - 'admin'
+EOF
+	cat >main.tf <<'EOF'
+terraform {
+  backend "kubernetes" {
+    secret_suffix = "state"
+    namespace     = "terraform"
+  }
+}
+
+module "cluster" {
+  source = "../../workloads"
+
+  domain         = "lvh.me"
+  verbose        = true
+  admin_secrets  = file("${path.module}/admin-secrets.yml")
+  authelia_users = file("${path.module}/authelia-users.yml")
+  workloads = {
+    whoami    = {}
+    dashboard = {}
+  }
+}
+EOF
+
+	# Initialize terraform
+	export KUBECONFIG=kubeconfig.yml
+	export KUBE_CONFIG_PATH=$KUBECONFIG
+	kubectl create namespace terraform
+	terraform init
+
 	cat <<-EOF
-	export CONSUL_HTTP_ADDR=consul.service.consul:8500
-	export CONSUL_HTTP_TOKEN=$(vault read -field=token kv/cluster/consul)
-	export NOMAD_ADDR=https://nomad.service.consul:4646/
-	export NOMAD_TOKEN=$(vault read -field=token kv/cluster/nomad)
+	########################################
+	#       DISK ENCRYPTION PASSWORD       #
+	########################################
+
+	$DISK_PASSWORD
+
+	Warning: this password will not be stored automatically. Copy it
+	to a safe place.
 	EOF
 }
 
-# @cmd Ensure that all nomad jobs are up to date
-#
-# Example: preview infrastructure changes
-#   argc nomad plan
-#
-# Example: apply infrastructure changes
-#   argc nomad apply
-#
-# Example: see terraform usage
-#   argc nomad -- --help
-#
-# @arg    subcommand  Terraform subcommand
-# @arg    args~       Additional arguments to terraform
-nomad() {
-	exec terraform -chdir=nomad "${argc_subcommand:-}" ${argc_args+"${argc_args[@]}"}
+# @cmd Run terraform apply.
+# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
+# @flag -n --plan  Show the changes without applying them
+# @flag -y --yes   Automatically apply the changes without asking
+sync() {
+	cd "env/${argc_name:?}"
+	export KUBE_CONFIG_PATH=kubeconfig.yml
+	args=()
+	if [ ${argc_plan+1} ]; then
+		args+=(plan)
+	else
+		args+=(apply ${argc_yes+-auto-approve})
+	fi
+	exec terraform "${args[@]}"
 }
 
-
-# @cmd Add Consul DNS to system settings
-setup-dns() {
-	exec sudo scutil <<-EOF
-	d.init
-	d.add ServerAddresses * 172.30.0.1
-	d.add SupplementalMatchDomains * consul
-	set State:/Network/Service/Consul/DNS
-	EOF
+# @cmd Destroy the cluster
+# @arg    name![`choose_env`]  Name of the cluster
+destroy() {
+	[ ! -d "env/${argc_name:?}" ] && exit 0
+	cd "env/${argc_name:?}"
+	./driver destroy "${argc_name:?}"
+	cd ../..
+	rm -rf "env/${argc_name:?}"
 }
 
-# @cmd Complete integration test in staging environment
-integration-test() {
-	argc terraform -e test-control apply -- -auto-approve
-	# Give some time for ssh to come up. Doesn't slow us down because
-	# cloud-init takes time to finish anyways.
-	sleep 10
-	ANSIBLE_HOST_KEY_CHECKING=False argc ansible -e test-control
+choose_env() {
+	for dir in env/*; do
+		echo "${dir#env/}"
+	done
 }
 
 if ! command -v argc >/dev/null; then
@@ -119,3 +131,4 @@ if ! command -v argc >/dev/null; then
 	exit 100
 fi
 eval "$(argc --argc-eval "$0" "$@")"
+# vim:set ts=4

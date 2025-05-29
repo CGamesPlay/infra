@@ -1,11 +1,11 @@
 #!/bin/sh
+set -eu
 
-set -eux
+KEY_FILE=/run/disk.key
+printf "%s" "${DISK_PASSWORD:?}" > "$KEY_FILE"
 
-BLOCK_DEVICE=/dev/vdb
-KEY_FILE=/run/data.key
-
-cryptsetup luksFormat "$BLOCK_DEVICE" -d "$KEY_FILE"
+set -x
+cryptsetup luksFormat "${BLOCK_DEVICE:?}" -d "$KEY_FILE"
 cryptsetup luksOpen "$BLOCK_DEVICE" data -d "$KEY_FILE"
 rm "$KEY_FILE"
 mkfs.ext4 /dev/mapper/data
@@ -30,7 +30,8 @@ resources:
       - identity: {}
 EOF
 
-mkdir /etc/rancher/k3s/config.yaml.d
+mkdir -p /etc/rancher/k3s/config.yaml.d
+
 cat >/etc/rancher/k3s/config.yaml.d/local.yml <<-EOF
 kube-apiserver-arg: encryption-provider-config=/var/opt/k3s/encryption.yml
 disable: metrics-server,local-storage
@@ -70,7 +71,6 @@ spec:
       value: /etc/sops-age-key-file/key
 EOF
 
-service k3s stop
 mkdir -p /etc/systemd/system/k3s.service.d/
 cat >/etc/systemd/system/k3s.service.d/override.conf <<-EOF
 [Unit]
@@ -86,7 +86,19 @@ systemctl start k3s
 EOF
 chmod +x /usr/local/bin/unseal
 
+service k3s stop
 systemctl daemon-reload
 k3s server --cluster-reset
 rm -rf /var/lib/rancher/k3s/server/db/
 service k3s start
+
+# Create the age key
+age-keygen -o /run/age.key
+age-keygen -y /run/age.key > /tmp/sops-age-recipient.txt
+kubectl create secret generic -n kube-system sops-age-key-file --from-file=key=/run/age.key
+rm -f /run/age.key
+
+# Wait for Traefik to be installed
+while ! kubectl wait --for condition=established --timeout=10s crd/ingressroutes.traefik.io; do
+    sleep 1
+done

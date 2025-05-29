@@ -7,49 +7,76 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 - Single-node [K3s](https://k3s.io) installation.
 - Encryption at rest for Kubernetes secrets, etcd, and all container persistent volumes.
 - Atomic upgrades by storing all stateful data on an external volume.
-- Local development environment via [Lima](https://lima-vm.io)
-- Production deployment via [Hetzner](https://www.hetzner.com).
-  - Automatic SSL certificates via [LetsEncrypt](https://letsencrypt.org).
+- Easily create local environments for testing.
+- Automatic SSL certificates via [LetsEncrypt](https://letsencrypt.org).
 
-- A [variety of workloads](./terraform) that I've deployed. Some highlights:
-  - [backup](./terraform/backup) - back up the system using [Restic](https://restic.net) on a periodic basis.
+- A [variety of workloads](./workloads) that I've deployed. Some highlights:
+  - [backup](./workloads/backup) - back up the system using [Restic](https://restic.net) on a periodic basis.
   - [registry](./nomad/registry) - host a private [Docker](https://www.docker.com/) registry, which can be referenced by other Nomad jobs.
-  - See the full list [here](./terraform).
+  - See the full list [here](./workloads).
 
 ## System components
 
+**K3s**
+
+[K3s](https://k3s.io) is a lightweight Kubernetes distribution which includes useful single-node-cluster features like host path volumes, a LoadBalancer, and [Traefik](https://traefik.io/traefik/).
+
 **Terraform**
 
-[Terraform](https://www.terraform.io) is used to describe the very simple infrastructure requirements for the cluster. This is primarily intended to be a base for future improvements, if the cluster ever needs to move to a multi-node setup.
+[Terraform](https://www.terraform.io) is used to declare the desired Kubernetes workloads. The state is itself stored in the Kubernetes cluster.
 
 **SOPS**
 
-[Mozilla SOPS](https://getsops.io/docs/) is used to encrypt Kubernetes secrets in this repository, and combined with [sops-secrets-operator](https://github.com/isindir/sops-secrets-operator/) to decrypt them on the cluster.
+[Mozilla SOPS](https://getsops.io/docs/) is used to encrypt Kubernetes secrets in this repository, and combined with [sops-secrets-operator](https://github.com/isindir/sops-secrets-operator/) to decrypt them on the cluster. We use [Age](https://age-encryption.org/) to as the encryption provider.
 
 ## Installation
 
-1. Configure your environment. The requirements:
-   - `HCLOUD_TOKEN` is the Hetzner Cloud token.
-   - `ssh-add -L` needs to show at least one key (it will be used as the key for the created instances).
-   - `python --version` needs to be 3. `apt install python-is-python3` on Ubuntu.
-   - `pip3 install ansible hvac ansible-modules-hashivault`
-2. Run `argc infra apply` to sync the infrastructure. This command requires confirmation before continuing, but you can also use `plan` or any other Terraform arguments.
-3. Run `argc ansible` to apply the configuration. The change detection does not work correctly on the first run, so `-CD` cannot be used here. They will work after a run has completed at least once.
-   - The Vault creation will drop `vault.txt` in the repository root, which contains the Vault unseal keys and root token. Store these safely and delete the file.
-   - Optionally, `argc verify` can be used to diagnose some basic issues now and in the future.
-4. Connect to the machine using ssh (use `argc master_ip` for the IP address) and follow the [WireGuard docs](./docs/wireguard.md) to set up the initial peer.
-5. Deploy jobs with Nomad. Use `argc nomad apply`.
-   - This will apply the terraform workspace in the `nomad` directory.
+### 1. Choose Technology
 
-### Local environment setup
+Choose the technology you will deploy to:
 
-To access the cluster from your local machine:
+- [Lima](https://lima-vm.io) is available for quickly spinning up test clusters on a local macOS machine.
+- [Hetzner Cloud](https://www.hetzner.com) is available for creating a cloud-hosted cluster.
 
-1. Install the generated CA at `bootstrap/data/ca.crt` to configure SSL. You can install it using Keychain Access.app into the login keychain, but you will need to manually trust the certificate, which is done from the certificate info window under "Trust".
-  - This also enables UI access in the browser: [Consul](https://172.30.0.1:8501/) | [Vault](https://172.30.0.1:8200/) | [Nomad](https://172.30.0.1:4646/)
-2. Configure WireGuard and connect it.
-3. Set up local DNS to use Consul.
-4. Use `eval $(argc env)` to get the necessary environment variables.
+### 2. Configure Dependencies
+
+The Lima driver requires that `limactl` is installed.
+
+The Hetzner driver requires that `hcloud` is installed. For Hetzner, your should also create an empty project to host the resources you will use. Set up `hcloud` using `hcloud context` or by setting `HCLOUD_TOKEN`.
+
+Generate an age key if you don't already have one: `age-keygen -o development.key`. The public key will be printed to the console; it should look like `age1qal59j7k2hphhmnmurg4ymj9n32sz5dgnx5teks3ch72n4wjfevsupgahc`.
+
+### 3. Initialize Cluster
+
+Run `argc init --driver=lima --age $AGE_PUBLIC_KEY local` to create a cluster named `local` using the Lima driver. `$AGE_PUBLIC_KEY` should be your age public key. This command should take a few minutes to run and should stream logs throughout the process.
+
+At the end, the script will print the disk encryption password. It is important that you store this somewhere safe; it is necessary to reboot or upgrade the server.
+
+To use the Hetzner driver, run `argc init --help` and `argc init --driver=hetzner --driver-help` to see the arguments you need to pass. At a minimum, you'll need to use `--location`, `--type`, and `--size`.
+
+You can create any number of clusters. Each stores its configuration in a subdirectory of `env/`. Looking at the local cluster in `env/local/`, we see these files:
+
+- `kubeconfig.yml` is the kubeconfig you can use to access the cluster.
+- `main.tf` is the root terraform module used to deploy workloads to the cluster.
+- `admin-secrets.yml` contains the secrets necessary to get the core services working (Authelia). They are randomly generated.
+- `authelia-users.yml` contains a sample Authelia users database.
+- `sops-age-recipient.txt` is the public key of the cluster's sops-secret-operator.
+
+### 4. Use Cluster
+
+The default cluster configuration is an empty k3s installation. Use `argc sync` to deploy the workloads from `main.tf` to the cluster.
+
+- [Dashboard](https://lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
+- `kubectl` - Use `env/local/kubeconfig.yml` to access
+- `argc sync local` - Run this to sync modifications to `env/local/main.tf`.
+
+### 5. Upgrade The Server
+
+We treat the server as immutable.
+
+### 6. Clean Up
+
+Once you no longer need an environment, use `argc destroy` to remove it. This will delete all local/cloud resources, and remove the `env/` subdirectory.
 
 ### Accessing Consul DNS over Wireguard
 
@@ -164,4 +191,4 @@ The steps required to make this setup "production-ready" are:
 
 ## Changes
 
-- The infrastructure underwent a substantial change from Nomad to Kubernetes. The older version can be found [here](https://github.com/CGamesPlay/infra/commit/35120ca5e04795cad60536bc5f91c0c6f89f4d15).
+- The infrastructure underwent a substantial change from Nomad to Kubernetes. The older version can be found [here](https://github.com/CGamesPlay/infra/commit/35120ca5e04795cad60536bc5f91c0c6f89f4d15). It uses Nomad, Consul, and Vault, as well as Ansible for managing the configuration of the server.

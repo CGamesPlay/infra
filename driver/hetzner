@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# @describe Set up a production cluster with Hetzner
+set -euo pipefail
+
+# Setup process:
+# 1. Create permanent infra (firewall, volume)
+# 2. Create first server
+# 3. Set up disk encryption (disk-setup.sh)
+# 4. Run bootstrap.sh
+#
+# Upgrade a server process:
+# 1. Shut down old server
+# 2. Create new server with old volume
+# 3. Run bootstrap.sh
+# 4. Confirm everything is working
+# 5. If everything is working, destroy old server
+# 6. If broken, destroy new server, reattach volume to old server, restart old server
+
+# @cmd Initialize a new environment
+# @flag --validate-args-only           Don't do anything other than validate arguments
+# @option --location!                  Location to create the cluster in
+# @option --size!                      Size for data volume
+# @option --type!                      Server type to use
+# @option --image=ubuntu-24.04         Image to use for server
+# @option --ssh-key=`default_ssh_key`  SSH key to use
+# @meta require-tools kubectl,terraform,age-keygen
+# @meta require-tools hcloud,jq,sops,age-keygen
+init() {
+	env_name=${1:?Environment name is required}
+
+	if hcloud firewall describe "$env_name" >/dev/null 2>&1; then
+		echo "hcloud: firewall $env_name already exists" >&2
+		exit 1
+	fi
+	if hcloud volume describe "data-$env_name" >/dev/null 2>&1; then
+		echo "hcloud: volume data-$env_name already exists" >&2
+		exit 1
+	fi
+
+	[ ${argc_validate_args_only+1} ] && exit 0
+
+	hcloud firewall create \
+		--name "$env_name" --rules-file ../../driver/hetzner-firewall.json
+	volume=$(hcloud volume create \
+		--name "data-$env_name" --size "${argc_size:?}" --location "${argc_location:?}" \
+		-o json | jq '.volume.id')
+	user_data=$(cat <<-EOF
+	#cloud-config
+	timezone: UTC
+	runcmd:
+	- curl -sfL https://get.k3s.io | sh -
+	package_update: true
+	packages: ['age']
+	EOF
+	)
+	args=(
+		--name "$env_name-1"
+		--type "${argc_type:?}"
+		--location "${argc_location:?}"
+		--image "${argc_image:?}"
+		--firewall "$env_name"
+		--ssh-key "${argc_ssh_key:?}"
+		--volume "$volume"
+		--user-data-from-file <(echo "$user_data")
+	)
+	server=$(hcloud server create -o json "${args[@]}")
+	server_ip=$(echo "$server" | jq -r '.server.public_net.ipv4.ip')
+	wait_for_ssh "$server_ip"
+
+	ssh_once -l root "$server_ip" \
+		DISK_PASSWORD="${DISK_PASSWORD:?}" \
+		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
+		sh <<-EOF
+	cloud-init status -w
+	$(cat ../../driver/bootstrap.sh)
+	EOF
+	ssh_once -l root "$server_ip" cat /etc/rancher/k3s/k3s.yaml | sed -e "s@https://127.0.0.1:6443@https://$server_ip:6443@" > kubeconfig.yml
+	ssh_once -l root "$server_ip" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+}
+
+# @cmd Delete the cluster
+destroy() {
+	env_name=${1:?Environment name is required}
+	if hcloud server describe "$env_name-1" >/dev/null 2>&1; then
+		hcloud server delete "$env_name-1"
+	fi
+	if hcloud firewall describe "$env_name" >/dev/null 2>&1; then
+		hcloud firewall delete "$env_name"
+	fi
+	if hcloud volume describe "data-$env_name" >/dev/null 2>&1; then
+		hcloud volume delete "data-$env_name"
+	fi
+}
+
+# Find any SSH key which is loaded in the local ssh-agent.
+default_ssh_key() {
+	patterns=()
+	for key in $(ssh-add -lE md5 | cut -d: -f2- | awk '{ print $1 }'); do
+		patterns+=(-e "$key")
+	done
+	hcloud ssh-key list | grep "${patterns[@]}" | awk '{ print $1 }'
+	if [[ "${PIPESTATUS[1]}" -ne 0 ]]; then
+		echo "No suitable ssh key found and none specified" >&2
+		return 1
+	fi
+}
+
+wait_for_ssh() {
+	# shellcheck disable=SC2016
+	timeout 300 sh -c 'until nc -z $0 $1; do sleep 1; done' "$1" 22
+}
+
+ssh_once() {
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
+}
+
+if ! command -v argc >/dev/null; then
+	echo "This command requires argc. Install from https://github.com/sigoden/argc" >&2
+	exit 100
+fi
+eval "$(argc --argc-eval "$0" "$@")"
