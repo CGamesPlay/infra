@@ -73,7 +73,7 @@ init() {
 		DISK_PASSWORD="${DISK_PASSWORD:?}" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
 		FORMAT_DRIVE=1 \
-		INSTALL_K3S_CHANNEL=stable \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
 		sh <<-EOF
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)
@@ -157,7 +157,7 @@ upgrade() {
 	ssh -o StrictHostKeyChecking=no \
 		-l root "$server_ip" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$(echo "$volume" | jq -r '.id')" \
-		INSTALL_K3S_CHANNEL=stable \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
 		sh <<-EOF
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)

@@ -11,6 +11,7 @@ set -eu
 # @arg    name $ENVIRONMENT        Name of the cluster
 # @arg    args~                    Arguments for driver
 # @option --age $AGE_PUBLIC_KEY    Admin's age public key to use
+# @option --k3s-channel=stable     K3s channel to use
 # @option --driver![lima|hetzner]  Type of cluster to create
 # @flag   --driver-help            Show help for the driver
 # @meta require-tools sops,terraform,kubectl
@@ -23,8 +24,10 @@ init() {
 	cd "env/${argc_name:?}"
 	ln -s "../../driver/${argc_driver:?}" driver
 	DISK_PASSWORD=$(head -c 32 /dev/urandom | base64)
+	export DISK_PASSWORD
+	export INSTALL_K3S_CHANNEL="${argc_k3s_channel:?}"
 
-	DISK_PASSWORD="$DISK_PASSWORD" ./driver init "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
+	./driver init "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
 
 	CLUSTER_AGE_PUBLIC_KEY=$(cat sops-age-recipient.txt)
 	age_keys="${argc_age:-}${argc_age:+,}$CLUSTER_AGE_PUBLIC_KEY"

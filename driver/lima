@@ -32,7 +32,7 @@ init() {
 		DISK_PASSWORD="${DISK_PASSWORD:?}" \
 		BLOCK_DEVICE=/dev/vdb \
 		FORMAT_DRIVE=1 \
-		INSTALL_K3S_CHANNEL=stable \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
 		sh < ../../driver/bootstrap.sh
 	limactl shell "$env_name" sudo cat /etc/rancher/k3s/k3s.yaml > kubeconfig.yml
 	limactl shell "$env_name" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
@@ -68,7 +68,7 @@ upgrade() {
 
 	limactl shell "$env_name" sudo \
 		BLOCK_DEVICE=/dev/vdb \
-		INSTALL_K3S_CHANNEL=stable \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
 		sh < ../../driver/bootstrap.sh
 }
 
