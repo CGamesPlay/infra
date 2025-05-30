@@ -10,7 +10,7 @@ set -euo pipefail
 # @option --image=ubuntu-24.04         Image to use for server
 # @option --ssh-key=`default_ssh_key`  SSH key to use
 # @meta require-tools kubectl,terraform,age-keygen
-# @meta require-tools hcloud,jq,sops,age-keygen
+# @meta require-tools hcloud,jq,sops,age-keygen,nc
 init() {
 	env_name=${1:?Environment name is required}
 
@@ -67,7 +67,9 @@ init() {
 	fi
 
 	wait_for_ssh "$server_ip"
-	ssh_once -l root "$server_ip" \
+	# shellcheck disable=SC2087
+	ssh -o StrictHostKeyChecking=no \
+		-l root "$server_ip" \
 		DISK_PASSWORD="${DISK_PASSWORD:?}" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
 		FORMAT_DRIVE=1 \
@@ -76,8 +78,14 @@ init() {
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)
 	EOF
-	ssh_once -l root "$server_ip" cat /etc/rancher/k3s/k3s.yaml | sed -e "s@https://127.0.0.1:6443@https://$server_ip:6443@" > kubeconfig.yml
-	ssh_once -l root "$server_ip" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+	ssh -l root "$server_ip" cat /etc/rancher/k3s/k3s.yaml | sed -e "s@https://127.0.0.1:6443@https://$server_ip:6443@" > kubeconfig.yml
+	ssh -l root "$server_ip" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+}
+
+# @cmd Unseal the cluster
+unseal() {
+	env_name=${1:?Environment name is required}
+	ssh -l root "$(hcloud server ip "$env_name")" -- unseal
 }
 
 # @cmd Replace the cluster's server with a new one
@@ -143,8 +151,11 @@ upgrade() {
 		fi
 	fi
 
+	ssh-keygen -R "$server_ip"
 	wait_for_ssh "$server_ip"
-	ssh_once -l root "$server_ip" \
+	# shellcheck disable=SC2087
+	ssh -o StrictHostKeyChecking=no \
+		-l root "$server_ip" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$(echo "$volume" | jq -r '.id')" \
 		INSTALL_K3S_CHANNEL=stable \
 		sh <<-EOF
@@ -161,6 +172,7 @@ upgrade() {
 # @cmd Delete the cluster
 destroy() {
 	env_name=${1:?Environment name is required}
+	ssh-keygen -R "$(hcloud server ip "$env_name")"
 	for resource in server firewall primary-ip volume; do
 		hcloud "$resource" list -l env="$env_name" -o noheader -o columns=id | xargs hcloud "$resource" delete
 	done
@@ -182,10 +194,6 @@ default_ssh_key() {
 wait_for_ssh() {
 	# shellcheck disable=SC2016
 	timeout 300 sh -c 'until nc -z $0 $1; do sleep 1; done' "$1" 22
-}
-
-ssh_once() {
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"
 }
 
 if ! command -v argc >/dev/null; then

@@ -38,6 +38,12 @@ init() {
 	limactl shell "$env_name" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
 }
 
+# @cmd Unseal the cluster
+unseal() {
+	env_name=${1:?Environment name is required}
+	limactl shell "$env_name" sudo unseal
+}
+
 # @cmd Replace the cluster's server with a new one
 #
 # The Lima driver is designed for development use, so does not support

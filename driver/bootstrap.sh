@@ -26,7 +26,8 @@ EOF
 cat >/usr/local/bin/unseal <<-EOF
 #!/bin/sh
 set -e
-cryptdisks_start data
+cryptsetup luksOpen "${BLOCK_DEVICE:?}" data
+echo "Drive opened successfully. Starting k3s..."
 systemctl start k3s
 EOF
 chmod +x /usr/local/bin/unseal

@@ -110,6 +110,13 @@ sync() {
 	exec terraform "${args[@]}"
 }
 
+# @cmd Unseal the cluster
+# @arg    name![`choose_env`]  Name of the cluster
+unseal() {
+	cd "env/${argc_name:?}"
+	./driver unseal "${argc_name:?}"
+}
+
 # @cmd Replace the cluster's server with a new one
 # @flag   --driver-help        Show help for the driver
 # @arg    name![`choose_env`]  Name of the cluster
