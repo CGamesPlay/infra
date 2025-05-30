@@ -19,7 +19,6 @@ init() {
 		exec "./driver/${argc_driver:?}" init --help
 	fi
 	"./driver/${argc_driver:?}" init --validate-args-only "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
-	argc_age=${argc_age:?}
 	mkdir "env/${argc_name:?}"
 	cd "env/${argc_name:?}"
 	ln -s "../../driver/${argc_driver:?}" driver
@@ -28,7 +27,8 @@ init() {
 	DISK_PASSWORD="$DISK_PASSWORD" ./driver init "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
 
 	CLUSTER_AGE_PUBLIC_KEY=$(cat sops-age-recipient.txt)
-	sops --encrypt --age "${argc_age:-},$CLUSTER_AGE_PUBLIC_KEY" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > admin-secrets.yml <<EOF
+	age_keys="${argc_age:-}${argc_age:+,}$CLUSTER_AGE_PUBLIC_KEY"
+	sops --encrypt --age "$age_keys" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > admin-secrets.yml <<EOF
 apiVersion: isindir.github.com/v1alpha3
 kind: SopsSecret
 metadata:
