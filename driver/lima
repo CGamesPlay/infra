@@ -24,14 +24,46 @@ init() {
 		--name="$env_name" \
 		--disk=20 \
 		--yes \
-		template://k3s \
-		--set '.timezone = "UTC" | .additionalDisks += [{"name": "'"$env_name"'", "format": false}]'
+		../../driver/lima-template.yml \
+		--set '.additionalDisks += [{"name": "'"$env_name"'", "format": false}]'
 	limactl start "$env_name"
 
-	limactl shell "$env_name" sudo sh -c 'apt update && apt install age'
-	cat ../../driver/bootstrap.sh | limactl shell "$env_name" sudo DISK_PASSWORD="${DISK_PASSWORD:?}" BLOCK_DEVICE=/dev/vdb sh
-	cp "$HOME/.lima/$env_name/copied-from-guest/kubeconfig.yaml" kubeconfig.yml
+	limactl shell "$env_name" sudo \
+		DISK_PASSWORD="${DISK_PASSWORD:?}" \
+		BLOCK_DEVICE=/dev/vdb \
+		FORMAT_DRIVE=1 \
+		INSTALL_K3S_CHANNEL=stable \
+		sh < ../../driver/bootstrap.sh
+	limactl shell "$env_name" sudo cat /etc/rancher/k3s/k3s.yaml > kubeconfig.yml
 	limactl shell "$env_name" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+}
+
+# @cmd Replace the cluster's server with a new one
+#
+# The Lima driver is designed for development use, so does not support
+# the blue-green deployment that the production driver uses. To drive
+# this home, the --delete-existing flag is required.
+# @flag --delete-existing  Delete the existing server before creating the new one
+upgrade() {
+	env_name=${1:?Environment name is required}
+	if [ ! ${argc_delete_existing+1} ]; then
+		echo "--delete-existing: required" >&2
+		exit 1
+	fi
+	limactl stop "$env_name"
+	limactl delete "$env_name"
+	limactl create \
+		--name="$env_name" \
+		--disk=20 \
+		--yes \
+		../../driver/lima-template.yml \
+		--set '.additionalDisks += [{"name": "'"$env_name"'", "format": false}]'
+	limactl start "$env_name"
+
+	limactl shell "$env_name" sudo \
+		BLOCK_DEVICE=/dev/vdb \
+		INSTALL_K3S_CHANNEL=stable \
+		sh < ../../driver/bootstrap.sh
 }
 
 # @cmd Delete the cluster

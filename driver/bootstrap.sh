@@ -1,55 +1,71 @@
 #!/bin/sh
-set -eu
+set -eux
 
-KEY_FILE=/run/disk.key
-printf "%s" "${DISK_PASSWORD:?}" > "$KEY_FILE"
+apt-get update
+apt-get install age
 
-set -x
-cryptsetup luksFormat "${BLOCK_DEVICE:?}" -d "$KEY_FILE"
-cryptsetup luksOpen "$BLOCK_DEVICE" data -d "$KEY_FILE"
-rm "$KEY_FILE"
-mkfs.ext4 /dev/mapper/data
-echo "/dev/mapper/data /var/opt ext4 noauto 0 0" >>/etc/fstab
-echo "data $BLOCK_DEVICE none noauto,headless=true" >>/etc/crypttab
-systemctl daemon-reload
-mount "/var/opt"
-
-mkdir /var/opt/k3s /var/opt/pvc
-chmod 700 /var/opt/k3s /var/opt/pvc
-cat >/var/opt/k3s/encryption.yml <<EOF
-apiVersion: apiserver.config.k8s.io/v1
-kind: EncryptionConfiguration
-resources:
-  - resources:
-      - secrets
-    providers:
-      - aesgcm:
-          keys:
-            - name: key1
-              secret: "$(head -c 32 /dev/urandom | base64)"
-      - identity: {}
-EOF
+curl -sfL https://get.k3s.io | \
+	INSTALL_K3S_CHANNEL=${INSTALL_K3S_CHANNEL:?} \
+	INSTALL_K3S_SKIP_START=true \
+	K3S_NODE_NAME=main \
+	sh -
 
 mkdir -p /etc/rancher/k3s/config.yaml.d
 
 cat >/etc/rancher/k3s/config.yaml.d/local.yml <<-EOF
-kube-apiserver-arg: encryption-provider-config=/var/opt/k3s/encryption.yml
-disable: metrics-server,local-storage
+disable: metrics-server
 EOF
 
-sed 's@/var/lib/rancher/k3s/storage@/var/opt/pvc@g' /var/lib/rancher/k3s/server/manifests/local-storage.yaml > /var/lib/rancher/k3s/server/manifests/local-local-storage.yaml
+mkdir -p /etc/systemd/system/k3s.service.d/
+cat >/etc/systemd/system/k3s.service.d/override.conf <<-EOF
+[Unit]
+After=var-lib-rancher.mount
+Requires=var-lib-rancher.mount
+EOF
 
-# Need to vendor the helm chart to ensure that it doesn't get tampered
-# with. https://isindir.github.io/sops-secrets-operator/index.yaml
-curl -fsSL https://isindir.github.io/sops-secrets-operator/sops-secrets-operator-0.22.0.tgz -o /var/lib/rancher/k3s/server/static/charts/sops-secrets-operator-0.22.0.tgz
-shasum -c <<-EOF
+cat >/usr/local/bin/unseal <<-EOF
+#!/bin/sh
+set -e
+cryptdisks_start data
+systemctl start k3s
+EOF
+chmod +x /usr/local/bin/unseal
+
+echo "/dev/mapper/data /var/lib/rancher ext4 noauto 0 0" >>/etc/fstab
+echo "data ${BLOCK_DEVICE:?} none noauto,headless=true" >>/etc/crypttab
+
+if [ ${FORMAT_DRIVE:+1} ]; then
+	KEY_FILE=/run/disk.key
+	set +x
+	printf "%s" "${DISK_PASSWORD:?}" > "$KEY_FILE"
+	set -x
+
+	cryptsetup luksFormat "$BLOCK_DEVICE" -d "$KEY_FILE"
+	cryptsetup luksOpen "$BLOCK_DEVICE" data -d "$KEY_FILE"
+	rm "$KEY_FILE"
+	mkfs.ext4 /dev/mapper/data
+	systemctl daemon-reload
+	mkdir /var/lib/rancher
+	mount "/var/lib/rancher"
+
+	mkdir -m 700 /var/lib/rancher/k3s
+	mkdir -m 700 /var/lib/rancher/k3s/server
+	mkdir -m 700 /var/lib/rancher/k3s/server/static
+	mkdir -m 700 /var/lib/rancher/k3s/server/static/charts
+	mkdir -m 700 /var/lib/rancher/k3s/server/manifests
+
+	# Need to vendor the helm chart to ensure that it doesn't get
+	# tampered with.
+	# https://isindir.github.io/sops-secrets-operator/index.yaml
+	curl -fsSL https://isindir.github.io/sops-secrets-operator/sops-secrets-operator-0.22.0.tgz -o /var/lib/rancher/k3s/server/static/charts/sops-secrets-operator-0.22.0.tgz
+	shasum -c <<-EOF
 28ebe7da0812a9f6cabc9d655dec2f7bb4ad7af789751afdb998eb0f570d1543  /var/lib/rancher/k3s/server/static/charts/sops-secrets-operator-0.22.0.tgz
 EOF
 
-# Drop it in as an add-on. We also want to pin the image name here since
-# it processes all of our secrets. This hash can be found through:
-# docker pull isindir/sops-secrets-operator:0.16.0
-cat >/var/lib/rancher/k3s/server/manifests/sops-secrets-operator.yaml <<-EOF
+	# Drop it in as an add-on. We also want to pin the digest here
+	# since it processes all of our secrets. This hash can be found
+	# through: docker pull isindir/sops-secrets-operator:0.16.0
+	cat >/var/lib/rancher/k3s/server/manifests/sops-secrets-operator.yaml <<-EOF
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
@@ -71,34 +87,20 @@ spec:
       value: /etc/sops-age-key-file/key
 EOF
 
-mkdir -p /etc/systemd/system/k3s.service.d/
-cat >/etc/systemd/system/k3s.service.d/override.conf <<-EOF
-[Unit]
-After=var-opt.mount
-Requires=var-opt.mount
-EOF
+	service k3s start
 
-cat >/usr/local/bin/unseal <<-EOF
-#!/bin/sh
-set -e
-cryptdisks_start data
-systemctl start k3s
-EOF
-chmod +x /usr/local/bin/unseal
+	# Create the age key
+	age-keygen -o /run/age.key
+	age-keygen -y /run/age.key > /tmp/sops-age-recipient.txt
+	kubectl create secret generic -n kube-system sops-age-key-file --from-file=key=/run/age.key
+	rm -f /run/age.key
 
-service k3s stop
-systemctl daemon-reload
-k3s server --cluster-reset
-rm -rf /var/lib/rancher/k3s/server/db/
-service k3s start
+	# Wait for k3s to finish its install procedure.
+	while ! kubectl wait --for condition=established --timeout=10s crd/ingressroutes.traefik.io; do
+		sleep 1
+	done
 
-# Create the age key
-age-keygen -o /run/age.key
-age-keygen -y /run/age.key > /tmp/sops-age-recipient.txt
-kubectl create secret generic -n kube-system sops-age-key-file --from-file=key=/run/age.key
-rm -f /run/age.key
-
-# Wait for Traefik to be installed
-while ! kubectl wait --for condition=established --timeout=10s crd/ingressroutes.traefik.io; do
-    sleep 1
-done
+else
+	systemctl daemon-reload
+	echo "The server will start normally once unseal is complete." >&2
+fi

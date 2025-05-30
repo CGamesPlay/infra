@@ -9,7 +9,7 @@ set -eu
 # and all driver arguments.
 #
 # @arg    name $ENVIRONMENT        Name of the cluster
-# @arg	  args~                    Arguments for driver
+# @arg    args~                    Arguments for driver
 # @option --age $AGE_PUBLIC_KEY    Admin's age public key to use
 # @option --driver![lima|hetzner]  Type of cluster to create
 # @flag   --driver-help            Show help for the driver
@@ -108,6 +108,18 @@ sync() {
 		args+=(apply ${argc_yes+-auto-approve})
 	fi
 	exec terraform "${args[@]}"
+}
+
+# @cmd Replace the cluster's server with a new one
+# @arg    name![`choose_env`]  Name of the cluster
+# @arg    args~                    Arguments for driver
+# @flag   --driver-help            Show help for the driver
+upgrade() {
+	cd "env/${argc_name:?}"
+	if [ ${argc_driver_help+1} ]; then
+		exec ./driver upgrade --help
+	fi
+	./driver upgrade "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
 }
 
 # @cmd Destroy the cluster
