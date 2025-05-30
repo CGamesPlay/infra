@@ -111,12 +111,12 @@ sync() {
 }
 
 # @cmd Replace the cluster's server with a new one
+# @flag   --driver-help        Show help for the driver
 # @arg    name![`choose_env`]  Name of the cluster
-# @arg    args~                    Arguments for driver
-# @flag   --driver-help            Show help for the driver
+# @arg    args~                Arguments for driver
 upgrade() {
 	cd "env/${argc_name:?}"
-	if [ ${argc_driver_help+1} ]; then
+	if [ ${argc_driver_help:+1} ]; then
 		exec ./driver upgrade --help
 	fi
 	./driver upgrade "${argc_name:?}" ${argc_args+"${argc_args[@]}"}

@@ -2,20 +2,6 @@
 # @describe Set up a production cluster with Hetzner
 set -euo pipefail
 
-# Setup process:
-# 1. Create permanent infra (firewall, volume)
-# 2. Create first server
-# 3. Set up disk encryption (disk-setup.sh)
-# 4. Run bootstrap.sh
-#
-# Upgrade a server process:
-# 1. Shut down old server
-# 2. Create new server with old volume
-# 3. Run bootstrap.sh
-# 4. Confirm everything is working
-# 5. If everything is working, destroy old server
-# 6. If broken, destroy new server, reattach volume to old server, restart old server
-
 # @cmd Initialize a new environment
 # @flag --validate-args-only           Don't do anything other than validate arguments
 # @option --location!                  Location to create the cluster in
@@ -40,21 +26,22 @@ init() {
 	[ ${argc_validate_args_only+1} ] && exit 0
 
 	hcloud firewall create \
-		--name "$env_name" --rules-file ../../driver/hetzner-firewall.json
+		--name "$env_name" \
+		--label env="$env_name" \
+		--rules-file ../../driver/hetzner-firewall.json
 	volume=$(hcloud volume create \
-		--name "data-$env_name" --size "${argc_size:?}" --location "${argc_location:?}" \
+		--name "data-$env_name" \
+		--label env="$env_name" \
+		--size "${argc_size:?}" \
+		--location "${argc_location:?}" \
 		-o json | jq '.volume.id')
 	user_data=$(cat <<-EOF
 	#cloud-config
 	timezone: UTC
-	runcmd:
-	- curl -sfL https://get.k3s.io | sh -
-	package_update: true
-	packages: ['age']
 	EOF
 	)
 	args=(
-		--name "$env_name-1"
+		--name "$env_name"
 		--type "${argc_type:?}"
 		--location "${argc_location:?}"
 		--image "${argc_image:?}"
@@ -62,14 +49,29 @@ init() {
 		--ssh-key "${argc_ssh_key:?}"
 		--volume "$volume"
 		--user-data-from-file <(echo "$user_data")
+		--label env="$env_name"
 	)
 	server=$(hcloud server create -o json "${args[@]}")
 	server_ip=$(echo "$server" | jq -r '.server.public_net.ipv4.ip')
-	wait_for_ssh "$server_ip"
 
+	# Mark the primary IPs as belonging to this environment
+	ipv4_id=$(echo "$server" | jq -r '.server.public_net.ipv4.id')
+	if [ "$ipv4_id" ]; then
+		hcloud primary-ip add-label "$ipv4_id" env="$env_name"
+		hcloud primary-ip update "$ipv4_id" --auto-delete=false
+	fi
+	ipv6_id=$(echo "$server" | jq -r '.server.public_net.ipv6.id')
+	if [ "$ipv6_id" ]; then
+		hcloud primary-ip add-label "$ipv6_id" env="$env_name"
+		hcloud primary-ip update "$ipv6_id" --auto-delete=false
+	fi
+
+	wait_for_ssh "$server_ip"
 	ssh_once -l root "$server_ip" \
 		DISK_PASSWORD="${DISK_PASSWORD:?}" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
+		FORMAT_DRIVE=1 \
+		INSTALL_K3S_CHANNEL=stable \
 		sh <<-EOF
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)
@@ -78,18 +80,90 @@ init() {
 	ssh_once -l root "$server_ip" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
 }
 
+# @cmd Replace the cluster's server with a new one
+#
+# In case something goes wrong, delete the old server and primary IPs,
+# then use --ignore-existing.
+# @flag   --ignore-existing            Do not attempt to reuse an old server
+# @option --type!                      Server type to use
+# @option --image=ubuntu-24.04         Image to use for server
+# @option --ssh-key=`default_ssh_key`  SSH key to use
+upgrade() {
+	env_name=${1:?Environment name is required}
+	volume=$(hcloud volume describe "data-$env_name" -o json)
+	server_create_args=()
+	if [ ${argc_ignore_existing+1} ]; then
+		server_create_args+=(--name "$env_name")
+	else
+		old_server_id=$(echo "$volume" | jq -r '.server')
+		old_server=$(hcloud server describe "$old_server_id" -o json)
+		server_name=$(echo "$old_server" | jq -r '.name')
+		server_create_args+=(--name "$server_name")
+		ipv4_id=$(echo "$old_server" | jq -r '.public_net.ipv4.id')
+		if [ "$ipv4_id" ]; then
+			server_create_args+=(--primary-ipv4 "$ipv4_id")
+		fi
+		ipv6_id=$(echo "$old_server" | jq -r '.public_net.ipv6.id')
+		if [ "$ipv6_id" ]; then
+			server_create_args+=(--primary-ipv6 "$ipv6_id")
+		fi
+		hcloud server shutdown --wait "$env_name"
+		hcloud server delete "$env_name"
+	fi
+	user_data=$(cat <<-EOF
+	#cloud-config
+	timezone: UTC
+	EOF
+	)
+	server_create_args+=(
+		--type "${argc_type:?}"
+		--location "$(echo "$volume" | jq -r '.location.name')"
+		--image "${argc_image:?}"
+		--firewall "$env_name"
+		--ssh-key "${argc_ssh_key:?}"
+		--volume "$(echo "$volume" | jq -r '.id')"
+		--user-data-from-file <(echo "$user_data")
+		--label env="$env_name"
+	)
+
+	server=$(hcloud server create -o json "${server_create_args[@]}")
+	server_ip=$(echo "$server" | jq -r '.server.public_net.ipv4.ip')
+
+	if [ ${argc_ignore_existing+1} ]; then
+		# Mark the primary IPs as belonging to this environment
+		ipv4_id=$(echo "$server" | jq -r '.server.public_net.ipv4.id')
+		if [ "$ipv4_id" ]; then
+			hcloud primary-ip add-label "$ipv4_id" env="$env_name"
+			hcloud primary-ip update "$ipv4_id" --auto-delete=false
+		fi
+		ipv6_id=$(echo "$server" | jq -r '.server.public_net.ipv6.id')
+		if [ "$ipv6_id" ]; then
+			hcloud primary-ip add-label "$ipv6_id" env="$env_name"
+			hcloud primary-ip update "$ipv6_id" --auto-delete=false
+		fi
+	fi
+
+	wait_for_ssh "$server_ip"
+	ssh_once -l root "$server_ip" \
+		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$(echo "$volume" | jq -r '.id')" \
+		INSTALL_K3S_CHANNEL=stable \
+		sh <<-EOF
+	cloud-init status -w
+	$(cat ../../driver/bootstrap.sh)
+	EOF
+
+	cat <<-EOF
+	Upgrade completed. Unseal the server and verify that everything is
+	still working properly.
+	EOF
+}
+
 # @cmd Delete the cluster
 destroy() {
 	env_name=${1:?Environment name is required}
-	if hcloud server describe "$env_name-1" >/dev/null 2>&1; then
-		hcloud server delete "$env_name-1"
-	fi
-	if hcloud firewall describe "$env_name" >/dev/null 2>&1; then
-		hcloud firewall delete "$env_name"
-	fi
-	if hcloud volume describe "data-$env_name" >/dev/null 2>&1; then
-		hcloud volume delete "data-$env_name"
-	fi
+	for resource in server firewall primary-ip volume; do
+		hcloud "$resource" list -l env="$env_name" -o noheader -o columns=id | xargs hcloud "$resource" delete
+	done
 }
 
 # Find any SSH key which is loaded in the local ssh-agent.

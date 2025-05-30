@@ -41,8 +41,8 @@ init() {
 # @cmd Replace the cluster's server with a new one
 #
 # The Lima driver is designed for development use, so does not support
-# the blue-green deployment that the production driver uses. To drive
-# this home, the --delete-existing flag is required.
+# snapshotting to roll back a failed deployment. To drive this home,
+# the --delete-existing flag is required.
 # @flag --delete-existing  Delete the existing server before creating the new one
 upgrade() {
 	env_name=${1:?Environment name is required}

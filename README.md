@@ -40,9 +40,10 @@ Choose the technology you will deploy to:
 
 ### 2. Configure Dependencies
 
-The Lima driver requires that `limactl` is installed.
+You'll need [argc](https://github.com/sigoden/argc/) installed, as well as a variety of other utilities that will be printed when you use a command that requires them.
 
-The Hetzner driver requires that `hcloud` is installed. For Hetzner, your should also create an empty project to host the resources you will use. Set up `hcloud` using `hcloud context` or by setting `HCLOUD_TOKEN`.
+- The Lima driver requires that `limactl` is installed.
+- The Hetzner driver requires that `hcloud` is installed. For Hetzner, your should also create an empty project to host the resources you will use. Set up `hcloud` using `hcloud context` or by setting `HCLOUD_TOKEN`.
 
 Generate an age key if you don't already have one: `age-keygen -o development.key`. The public key will be printed to the console; it should look like `age1qal59j7k2hphhmnmurg4ymj9n32sz5dgnx5teks3ch72n4wjfevsupgahc`.
 
@@ -72,68 +73,42 @@ The default cluster configuration is an empty k3s installation. Use `argc sync` 
 
 ### 5. Upgrade The Server
 
-We treat the server as immutable.
+**Option A: My Server is a "pet"**
+
+You can follow the normal [K3s upgrade guide](https://docs.k3s.io/upgrades), as well as the normal [Ubuntu upgrade guide](https://documentation.ubuntu.com/server/how-to/software/upgrade-your-release/index.html).
+
+**Option B: My server is "cattle"**
+
+It is also possible to simply swap out the server for a new one using the same data drive. This method gives a fresh install of k3s from a known-good image.
+
+To use this second approach, see `argc upgrade --help` and `argc upgrade --driver-help $ENVIRONMENT` for the available options. The basic approach looks like this:
+
+1. Create a snapshot of the current server to roll back to if something happens: `hcloud server create-image`
+2. Replace your server with a new one using `argc upgrade`
+3. Unseal the server with `argc unseal`
+4. Verify everything works. If you need to roll back to the previous version, use the snapshot you created in step 1 (e.g. `argc upgrade $ENVIRONMENT --image=my-snapshot-id`).
+5. Delete the snapshot once you are happy with the upgrade.
 
 ### 6. Clean Up
 
 Once you no longer need an environment, use `argc destroy` to remove it. This will delete all local/cloud resources, and remove the `env/` subdirectory.
 
-### Accessing Consul DNS over Wireguard
+### 7. Prepare for Production
 
-The generated WireGuard configuration does not specify DNS servers for the tunnel. If you want to resolve `service.consul` addresses through the tunnel, you need to either route all DNS through the tunnel, or configure your machine to only route the desired queries through the tunnel.
+Here is a checklist of things you should do when you are ready to deploy your cluster to production.
 
-**macOS**
+1. Turn on accidental deletion protection for the volume and primary IPs: `hcloud volume enable-protection` and `hcloud primary-ip enable-protection`.
 
-You can configure your macOS system DNS to use the tunnel for the `.consul` TLD only using this snippet. [This StackExchange answer](https://apple.stackexchange.com/a/385218/14873) has more information and debugging tips.
-
-```bash
-sudo scutil <<EOF
-d.init
-d.add ServerAddresses * 172.30.0.1
-d.add SupplementalMatchDomains * consul
-set State:/Network/Service/Consul/DNS
-EOF
-```
-
-Note that even if you do this, programs written in go (like Nomad, Consul, and Vault) [will not respect this setting](https://github.com/golang/go/issues/12524), so you will need to specify IP addresses when using these CLIs. Additionally, this command needs to be run on every boot (see [an example of automating this configuration](https://github.com/CGamesPlay/dotfiles/blob/master/macos/Library/LaunchAgents/local.dns.cluster.plist)). This is resolved in Go 1.20, released 2023-02-01.
-
-**iOS**
-
-WireGuard for iOS always routes all DNS through the tunnel. Traffic is not routed through the tunnel, only DNS.
-
-If everything works, you should be able to SSH to nodes using their names:
-
-```bash
-ssh server-master.node.consul
-```
-
-## Terraform modules
+## Repo Organization
 
 The terraform directory contains a variety of modules used to control the Kubernetes cluster. The terraform state is also stored in the cluster.
 
-- `lima/` is the root module for local development.
-- `terraform/` is the main module, defining the providers and backend.
-  - `admin/` is the base module which should always be included. It includes Traefik and Authelia.
+- `env/$ENVIRONMENT` describes a single environment. My production deployment is checked in here, which you can see as an example.
+- `driver/` is a directory containing the scripts to manage the infrastructure powering the cluster. These are not meant to be run directly, instead accessed through the root `Argcfile.sh`.
+- `workloads/` is the main module, which also includes mandatory services like the Traefik configuration and Authelia.
+  - Subdirectories here correspond to individual workloads which can be enabled and configured using the environment's `main.tf` file.
 
 ## Using Nomad
-
-Now that the server is set up, you'll want to start running some jobs on your new cluster. Your first two jobs should be [traefik](./nomad/traefik) and [whoami](./nomad/whoami.disabled), which will allow you to verify that everything is working properly. After that, you can do whatever you like. My [nomad directory](./nomad) has the jobspecs that I am using, which you can use as a baseline for your own.
-
-This repository uses Terraform to configure the jobs. Each directory in `nomad` has a `main.tf` which is includes from the main `nomad/main.tf`. Use `argc nomad --help` to see how to deploy Nomad jobs using the system.
-
-### Note about storage
-
-Presently, all of my stateful workloads reside on the master node. As a result, I haven't invested in any container storage interfaces, and I use plain Docker bind mounts to attach stateful volumes. If you want to do this, you'll need to enable the feature in `/etc/nomad.d/client.hcl`:
-
-```hcl
-plugin "docker" {
-  config {
-    volumes {
-      enabled = true
-    }
-  }
-}
-```
 
 ### Deploying from CI/CD
 
@@ -156,38 +131,19 @@ NOMAD_TOKEN=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/nomad/c
 	| jq -r '.data.secret_id') || exit $?
 ```
 
-## Networking reference
-
-| CIDR           | Purpose                                                      |
-| -------------- | ------------------------------------------------------------ |
-| 172.17.0.0/16  | Internal addresses for Docker containers.                    |
-| 172.30.0.0/16  | Wireguard addresses. This is the main way in which nodes communicate with each other. |
-| 172.30.252.0/22  | Roaming peer subnet. |
-| 172.30.0.0/22  | Peers located in nbg1. |
-| 172.31.0.0/16  | Physical IP address of nodes. The particular arrangement of this subnet depends on the datacenter. |
-
-Set up security groups such that the machines in the cluster can only communicate with each other over Wireguard (51820 UDP). Incoming connections will only go to the traefik machine.
-
-For reference, here are the ports used by the main programs: Nomad (4646-4647 plus 20000-32000 for services), Consul (8300-8302, 8500), Vault (8200-8201).
-
 ## Security Model
 
 This is a toy project for personal use. As a result, the security model has been simplified from the normal one that you would encounter in a production system. At its core, the key difference is that a single-node system will be fully compromised if root access is gained on that node. The key implication of this is: **if a job escapes its sandbox, everything is compromised.** Specifically:
 
-- Access to the root privileges on the host system can be used to read secrets directly out of Vault's memory.
-- Access to the Docker socket on the host system can be used to run an arbitrary container with root privileges on the host system.
-- Access to Nomad can be used to submit an arbitrary job with root privileges on the host system.
-
-As a result of these serious limitations, some aspects of the original security model have been superseded and are not necessary:
-
-- The Nomad server can also act as a Nomad client (a compromised client already implies the entire cluster is compromised)
-- Vault can store its configuration in the same Consul cluster as Nomad (a compromised Nomad client already implies the entire cluster is compromised).
+- Access to the root privileges on the host system can be used to read the unencrypted contents of the cluster's drive.
+- Access to kube-apiserver can be used to run an arbitrary pod with root privileges on the host system.
+- Helm charts installed from URLs can be modified at any time in the future to run an arbitrary pods with root privileges on the host system.
 
 The steps required to make this setup "production-ready" are:
 
-1. Make a Vault cluster of at least 3 nodes, and using a Consul cluster disconnected from the production one, and with more than a single unseal key.
-2. Make a Nomad server cluster of at least 3 nodes, which do not run the Nomad client.
-3. Set up some sort of container storage interface or or networked filesystem to use with the Nomad clients.
+1. Set up [Pod Security Admissions](https://kubernetes.io/docs/concepts/security/pod-security-admission/) to prevent pods from being able to access resources that they shouldn't (host system resources, kube-system namespace, etc).
+2. Follow the [K3s CIS Hardening Guide](https://docs.k3s.io/security/hardening-guide).
+   - Note: the Kubernetes-native secrets encryption is not used; instead the entire etcd store is encrypted using full disk encryption.
 
 ## Changes
 
