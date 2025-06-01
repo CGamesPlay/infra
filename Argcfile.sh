@@ -73,8 +73,8 @@ module "cluster" {
   admin_secrets  = file("${path.module}/admin-secrets.yml")
   authelia_users = file("${path.module}/authelia-users.yml")
   workloads = {
-    whoami    = {}
     dashboard = {}
+    whoami    = {}
   }
 }
 EOF
@@ -99,16 +99,24 @@ EOF
 
 # @cmd Run terraform apply.
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
-# @flag -n --plan  Show the changes without applying them
-# @flag -y --yes   Automatically apply the changes without asking
+# @flag    --init     Run terraform init
+# @flag    --refresh  Refresh state before planning
+# @flag -n --plan     Show the changes without applying them
+# @flag -y --yes      Automatically apply the changes without asking
 sync() {
 	cd "env/${argc_name:?}"
 	export KUBE_CONFIG_PATH=kubeconfig.yml
+	if [ ${argc_init+1} ]; then
+		terraform init
+	fi
 	args=()
 	if [ ${argc_plan+1} ]; then
 		args+=(plan)
 	else
 		args+=(apply ${argc_yes+-auto-approve})
+	fi
+	if [ ! ${argc_refresh+1} ]; then
+		args+=(-refresh=false)
 	fi
 	exec terraform "${args[@]}"
 }

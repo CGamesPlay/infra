@@ -44,19 +44,19 @@ resource "kubernetes_manifest" "admin_secrets" {
   manifest   = yamldecode(var.admin_secrets)
 }
 
+module "backup" {
+  count  = lookup(var.workloads, "backup", null) != null ? 1 : 0
+  source = "./backup"
+
+  namespace = kubernetes_namespace.admin.metadata[0].name
+}
+
 module "dashboard" {
   count  = lookup(var.workloads, "dashboard", null) != null ? 1 : 0
   source = "./dashboard"
 
   auth_middleware = local.auth_middleware
   domain          = var.domain
-}
-
-module "backup" {
-  count  = lookup(var.workloads, "backup", null) != null ? 1 : 0
-  source = "./backup"
-
-  namespace = kubernetes_namespace.admin.metadata[0].name
 }
 
 module "whoami" {
