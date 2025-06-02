@@ -9,7 +9,7 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 - Atomic upgrades by storing all stateful data on an external volume.
 - Easily create local environments for testing.
 - Automatic SSL certificates via [LetsEncrypt](https://letsencrypt.org).
-
+- IPv4 and IPv6 support.
 - A [variety of workloads](./workloads) that I've deployed. Some highlights:
   - [backup](./workloads/backup) - back up the system using [Restic](https://restic.net) on a periodic basis.
   - [registry](./nomad/registry) - host a private [Docker](https://www.docker.com/) registry, which can be referenced by other Nomad jobs.
