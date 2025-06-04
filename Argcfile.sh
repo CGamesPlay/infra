@@ -31,7 +31,8 @@ init() {
 
 	CLUSTER_AGE_PUBLIC_KEY=$(cat sops-age-recipient.txt)
 	age_keys="${argc_age:-}${argc_age:+,}$CLUSTER_AGE_PUBLIC_KEY"
-	sops --encrypt --age "$age_keys" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > admin-secrets.yml <<EOF
+	sops --encrypt --age "$age_keys" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > secrets.yml <<EOF
+---
 apiVersion: isindir.github.com/v1alpha3
 kind: SopsSecret
 metadata:
@@ -45,6 +46,7 @@ spec:
       AUTHELIA_SESSION_SECRET: $(head -c 32 /dev/urandom | base64)
       AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: $(head -c 32 /dev/urandom | base64)
       AUTHELIA_STORAGE_ENCRYPTION_KEY: $(head -c 32 /dev/urandom | base64)
+...
 EOF
 	cat >authelia-users.yml <<'EOF'
 users:
@@ -57,33 +59,9 @@ users:
     groups:
       - 'admin'
 EOF
-	cat >main.tf <<'EOF'
-terraform {
-  backend "kubernetes" {
-    secret_suffix = "state"
-    namespace     = "terraform"
-  }
-}
+	cp ../../workloads/config.template.libsonnet config.libsonnet
 
-module "cluster" {
-  source = "../../workloads"
-
-  domain         = "lvh.me"
-  verbose        = true
-  admin_secrets  = file("${path.module}/admin-secrets.yml")
-  authelia_users = file("${path.module}/authelia-users.yml")
-  workloads = {
-    dashboard = {}
-    whoami    = {}
-  }
-}
-EOF
-
-	# Initialize terraform
 	export KUBECONFIG=kubeconfig.yml
-	export KUBE_CONFIG_PATH=$KUBECONFIG
-	kubectl create namespace terraform
-	terraform init
 
 	cat <<-EOF
 	########################################
@@ -97,28 +75,82 @@ EOF
 	EOF
 }
 
-# @cmd Run terraform apply.
+_render_manifest() {
+	jsonnet -J "env/${argc_name:?}" -J workloads -y \
+		--tla-str "key=${argc_workload:?}" \
+		-e "function(key) (import 'main.jsonnet').manifests(key)" | \
+		kbld -f -
+}
+
+# @cmd Render an environment's manifests for a particular workload
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
-# @flag    --init     Run terraform init
-# @flag    --refresh  Refresh state before planning
-# @flag -n --plan     Show the changes without applying them
-# @flag -y --yes      Automatically apply the changes without asking
+# @arg    workload![`choose_workload`]      Name of workload to render
+# @meta require-tools jsonnet,kbld,kubectl,kapp
+render() {
+	_render_manifest
+}
+
+# @cmd Show a diff of manifest changes
+# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
+# @arg    workload![`choose_workload`]      Name of workload to consider
+# @meta require-tools jsonnet,kbld,kubectl,kapp
+diff() {
+	driver=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
+		--tla-str "key=${argc_workload:?}" \
+		-e "function(key) (import 'main.jsonnet').decls[key].driver")
+	manifest=$(_render_manifest)
+	case "$driver" in
+		kubectl)
+			kubectl diff -f <(echo "$manifest") || true
+			;;
+		kapp)
+			kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
+			;;
+		*)
+			echo "Invalid driver: $driver" >&2
+			exit 1
+			;;
+	esac
+}
+
+# @cmd Apply the current manifests to the environment
+# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
+# @arg    workload![`choose_workload`]      Name of workload to consider
+# @flag   --yes                             Automatically accept kapp apps
+# @meta require-tools jsonnet,kbld,kubectl,kapp
+apply() {
+	driver=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
+		--tla-str "key=${argc_workload:?}" \
+		-e "function(key) (import 'main.jsonnet').decls[key].driver")
+	manifest=$(_render_manifest)
+	case "$driver" in
+		kubectl)
+			kubectl apply -f <(echo "$manifest")
+			;;
+		kapp)
+			kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
+			;;
+		*)
+			echo "Invalid driver: $driver" >&2
+			exit 1
+			;;
+	esac
+}
+
+# @cmd Sync all enabled workloads
+# @arg     name![`choose_env`] $ENVIRONMENT  Name of the cluster
+# @flag -n --dry-run                         Show the changes without applying them
+# @flag    --yes                             Automatically accept kapp apps
 sync() {
-	cd "env/${argc_name:?}"
-	export KUBE_CONFIG_PATH=kubeconfig.yml
-	if [ ${argc_init+1} ]; then
-		terraform init
-	fi
-	args=()
-	if [ ${argc_plan+1} ]; then
-		args+=(plan)
-	else
-		args+=(apply ${argc_yes+-auto-approve})
-	fi
-	if [ ! ${argc_refresh+1} ]; then
-		args+=(-refresh=false)
-	fi
-	exec terraform "${args[@]}"
+	workloads=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
+		-e "local C = import 'main.jsonnet'; std.join('\n', std.sort(std.objectFields(C.config.workloads), function(id) C.decls[id].priority))")
+	for workload in $workloads; do
+		if [ ${argc_dry_run:+1} ]; then
+			argc diff "${argc_name:?}" "$workload"
+		else
+			argc apply "${argc_name:?}" "$workload"
+		fi
+	done
 }
 
 # @cmd Unseal the cluster
@@ -154,6 +186,10 @@ choose_env() {
 	for dir in env/*; do
 		echo "${dir#env/}"
 	done
+}
+
+choose_workload() {
+	jsonnet -J workloads -S -e "std.join('\n', std.objectFields((import 'main.jsonnet').decls))"
 }
 
 if ! command -v argc >/dev/null; then

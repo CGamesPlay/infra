@@ -21,9 +21,9 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 
 [K3s](https://k3s.io) is a lightweight Kubernetes distribution which includes useful single-node-cluster features like host path volumes, a LoadBalancer, and [Traefik](https://traefik.io/traefik/).
 
-**Terraform**
+**Jsonnet**
 
-[Terraform](https://www.terraform.io) is used to declare the desired Kubernetes workloads. The state is itself stored in the Kubernetes cluster.
+[Jsonnet](https://jsonnet.org/) is used to declare the desired Kubernetes workloads. The configuration boils down to a series of manifest files which are applied using either kubectl or [kapp](https://carvel.dev/kapp/).
 
 **SOPS**
 
@@ -58,10 +58,10 @@ To use the Hetzner driver, run `argc init --help` and `argc init --driver=hetzne
 You can create any number of clusters. Each stores its configuration in a subdirectory of `env/`. Looking at the local cluster in `env/local/`, we see these files:
 
 - `kubeconfig.yml` is the kubeconfig you can use to access the cluster.
-- `main.tf` is the root terraform module used to deploy workloads to the cluster.
-- `admin-secrets.yml` contains the secrets necessary to get the core services working (Authelia). They are randomly generated.
-- `authelia-users.yml` contains a sample Authelia users database.
 - `sops-age-recipient.txt` is the public key of the cluster's sops-secret-operator.
+- `config.libsonnet` contains the configuration for the workloads.
+- `secrets.yml` contains the environment-specific SOPS-encrypted secrets. Each document in this YAML file should be a SopsSecret object, and you need to use a separate object for each namespace you want to add secrets to.
+- `authelia-users.yml` contains a sample Authelia users database.
 
 ### 4. Use Cluster
 
@@ -69,7 +69,13 @@ The default cluster configuration is an empty k3s installation. Use `argc sync` 
 
 - [Dashboard](https://lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
 - `kubectl` - Use `env/local/kubeconfig.yml` to access
-- `argc sync local` - Run this to sync modifications to `env/local/main.tf`.
+- `kapp` - Use `env/local/kubeconfig.yml` to access
+- `argc sync local` - Run this to sync all workloads in `config.libsonnet`. This is equivalent to running `argc apply local $WORKLOAD` for each workload configured.
+- `argc render local $WORKLOAD` - Show the rendered manifest for the given workload.
+- `argc diff local $WORKLOAD` - Show a diff of the rendered manifest and the current cluster state.
+- `argc apply local $WORKLOAD` - Apply the rendered manifest to the cluster.
+
+Note that there presently isn't any delete support for workloads. You can manually delete a workload using something like `argc render local $WORKLOAD | kubectl delete -f -`, before removing the workload from the `config.libsonnet` file.
 
 ### 5. Upgrade The Server
 
@@ -98,15 +104,16 @@ Once you no longer need an environment, use `argc destroy` to remove it. This wi
 Here is a checklist of things you should do when you are ready to deploy your cluster to production.
 
 1. Turn on accidental deletion protection for the volume and primary IPs: `hcloud volume enable-protection` and `hcloud primary-ip enable-protection`.
+1. Configure DNS for the main domain and subdomains.
 
 ## Repo Organization
 
-The terraform directory contains a variety of modules used to control the Kubernetes cluster. The terraform state is also stored in the cluster.
+Here are the main directories in this repository
 
 - `env/$ENVIRONMENT` describes a single environment. My production deployment is checked in here, which you can see as an example.
 - `driver/` is a directory containing the scripts to manage the infrastructure powering the cluster. These are not meant to be run directly, instead accessed through the root `Argcfile.sh`.
-- `workloads/` is the main module, which also includes mandatory services like the Traefik configuration and Authelia.
-  - Subdirectories here correspond to individual workloads which can be enabled and configured using the environment's `main.tf` file.
+- `workloads/` is the main Jsonnet directory.
+  - Subdirectories here correspond to individual workloads which can be enabled and configured using the environment's `config.libsonnet` file.
 
 ## Using Nomad
 
