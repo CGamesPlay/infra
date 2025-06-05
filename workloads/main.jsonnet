@@ -4,6 +4,7 @@ local decls = {
   backup: import 'backup/main.libsonnet',
   core: import 'core/main.libsonnet',
   'cert-manager': import 'cert-manager/main.libsonnet',
+  chess2online: import 'chess2online/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
   'open-webui': import 'open-webui/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
