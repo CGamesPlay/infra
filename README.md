@@ -12,7 +12,6 @@ This is the repo I use for [my personal cloud server](https://cgamesplay.com/pos
 - IPv4 and IPv6 support.
 - A [variety of workloads](./workloads) that I've deployed. Some highlights:
   - [backup](./workloads/backup) - back up the system using [Restic](https://restic.net) on a periodic basis.
-  - [registry](./nomad/registry) - host a private [Docker](https://www.docker.com/) registry, which can be referenced by other Nomad jobs.
   - See the full list [here](./workloads).
 
 ## System components
@@ -115,28 +114,11 @@ Here are the main directories in this repository
 - `workloads/` is the main Jsonnet directory.
   - Subdirectories here correspond to individual workloads which can be enabled and configured using the environment's `config.libsonnet` file.
 
-## Using Nomad
+## Using Kubernetes
 
 ### Deploying from CI/CD
 
-The Ansible playbooks set up an AppRole auth method preconfigured with a deployment role. Basically, you can use a script like the following to get a Nomad token which is able to submit jobs and scale them (but is otherwise limited).
-
-1. Install the [gitlab-ci.yml template](script/Deploy.gitlab-ci.yml) to the repository you want to deploy. Note that the deploy image referenced is specific to my cluster, you'll want to generate your own with your CA cert installed.
-2. Find the correct RoleID and the value in the template: `vault read auth/approle/role/deploy/role-id`
-3. Create a new SecretID using `vault write -f auth/approle/role/deploy/secret-id`. Save this as `VAULT_SECRET_ID` in the CI/CDs secrets store.
-
-If you want a more manual approach, these curl snippets will get the token without installing the Vault CLI.
-
-```bash
-VAULT_ADDR=https://myvault.example.tld # Fill in appropriately.
-VAULT_ROLE_ID=2d68a8af-e06f-7746-4bf2-4dc55d07108a # From Step 2
-# Make sure to install the CA certificate.
-
-VAULT_TOKEN=$(curl --request POST --data '{ "role_id": "'$VAULT_ROLE_ID'", "secret_id": "'$VAULT_SECRET_ID'" }' $VAULT_ADDR/v1/auth/approle/login \
-	| jq -r ".auth.client_token") || exit $?
-NOMAD_TOKEN=$(curl --header "X-Vault-Token: $VAULT_TOKEN" $VAULT_ADDR/v1/nomad/creds/deploy \
-	| jq -r '.data.secret_id') || exit $?
-```
+Unclear!
 
 ## Security Model
 
