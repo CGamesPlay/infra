@@ -94,6 +94,7 @@ render() {
 # @arg    workload![`choose_workload`]      Name of workload to consider
 # @meta require-tools jsonnet,kapp
 diff() {
+	export KUBECONFIG="env/${argc_name:?}/kubeconfig.yml"
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
 }
@@ -104,6 +105,7 @@ diff() {
 # @flag   --yes                             Automatically accept kapp apps
 # @meta require-tools jsonnet,kapp
 apply() {
+	export KUBECONFIG="env/${argc_name:?}/kubeconfig.yml"
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
 }
