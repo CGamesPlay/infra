@@ -78,14 +78,13 @@ EOF
 _render_manifest() {
 	jsonnet -J "env/${argc_name:?}" -J workloads -y \
 		--tla-str "key=${argc_workload:?}" \
-		-e "function(key) (import 'main.jsonnet').manifests(key)" | \
-		kbld -f -
+		-e "function(key) (import 'main.jsonnet').manifests(key)"
 }
 
 # @cmd Render an environment's manifests for a particular workload
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to render
-# @meta require-tools jsonnet,kbld,kapp
+# @meta require-tools jsonnet,kapp
 render() {
 	_render_manifest
 }
@@ -93,7 +92,7 @@ render() {
 # @cmd Show a diff of manifest changes
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to consider
-# @meta require-tools jsonnet,kbld,kapp
+# @meta require-tools jsonnet,kapp
 diff() {
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
@@ -103,7 +102,7 @@ diff() {
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to consider
 # @flag   --yes                             Automatically accept kapp apps
-# @meta require-tools jsonnet,kbld,kapp
+# @meta require-tools jsonnet,kapp
 apply() {
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
