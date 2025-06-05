@@ -5,6 +5,8 @@ local decls = {
   core: import 'core/main.libsonnet',
   'cert-manager': import 'cert-manager/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
+  'open-webui': import 'open-webui/main.libsonnet',
+  seafile: import 'seafile/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
 };
 

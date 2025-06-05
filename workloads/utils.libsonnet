@@ -1,4 +1,7 @@
 {
+  // Helper to hash config data for use as an immutable ConfigMap object.
+  // The existing metadata.name is treated as a prefix and should end in
+  // "-".
   immutable_config_map(manifest): manifest {
     metadata+: {
       name: manifest.metadata.name + std.md5(std.manifestJson(manifest.data)),

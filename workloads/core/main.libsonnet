@@ -12,7 +12,7 @@ local utils = import 'utils.libsonnet';
     } + _config,
 
     sopsSecrets: {
-      [x.metadata.namespace + ':' + x.metadata.name]: x
+      [std.get(x.metadata, 'namespace', 'default') + ':' + x.metadata.name]: x
       for x in std.parseYaml(config.secrets)
     },
 
