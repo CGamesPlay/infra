@@ -23,11 +23,13 @@
     ingress: {
       apiVersion: 'networking.k8s.io/v1',
       kind: 'Ingress',
-      metadata: metadata + if middlewares != [] then
-        { annotations+: {
-          'traefik.ingress.kubernetes.io/router.middlewares': std.join(',', middlewares),
-        } }
-      else {},
+      metadata: metadata {
+        annotations+: {
+          'cert-manager.io/cluster-issuer': 'letsencrypt',
+        } + if middlewares != [] then
+          { 'traefik.ingress.kubernetes.io/router.middlewares': std.join(',', middlewares) }
+        else {},
+      },
       spec: {
         rules: [
           {
@@ -46,6 +48,12 @@
                 },
               ],
             },
+          },
+        ],
+        tls: [
+          {
+            secretName: app + '-tls',
+            hosts: [host],
           },
         ],
       },

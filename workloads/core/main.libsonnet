@@ -46,6 +46,9 @@ local utils = import 'utils.libsonnet';
               matchRule: 'Host(`traefik.' + config.domain + '`)',
               entryPoints: ['websecure'],
               middlewares: [{ name: $.auth_middleware }],
+              // NOTE: certificate is manually requested in cert-manager
+              // workload.
+              tls: { secretName: 'traefik-tls' },
             },
           },
           providers: {

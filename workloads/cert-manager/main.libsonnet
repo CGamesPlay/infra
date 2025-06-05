@@ -9,6 +9,7 @@
     local manifests = std.parseYaml(importstr 'cert-manager.yml'),
 
     vendor: manifests,
+
     clusterIssuer: {
       apiVersion: 'cert-manager.io/v1',
       kind: 'ClusterIssuer',
@@ -28,6 +29,22 @@
             },
           ],
         },
+      },
+    },
+
+    // The IngressRoute CRD that the Traefik dashboard uses doesn't cause
+    // cert-manager to request certificates, so we do that part manually.
+    traefikCertificate: {
+      apiVersion: 'cert-manager.io/v1',
+      kind: 'Certificate',
+      metadata: {
+        name: 'traefik-tls',
+        namespace: 'kube-system',
+      },
+      spec: {
+        secretName: 'traefik-tls',
+        dnsNames: ['traefik.' + config.domain],
+        issuerRef: { name: 'letsencrypt' },
       },
     },
   },
