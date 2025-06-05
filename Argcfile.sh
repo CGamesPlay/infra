@@ -85,7 +85,7 @@ _render_manifest() {
 # @cmd Render an environment's manifests for a particular workload
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to render
-# @meta require-tools jsonnet,kbld,kubectl,kapp
+# @meta require-tools jsonnet,kbld,kapp
 render() {
 	_render_manifest
 }
@@ -93,58 +93,26 @@ render() {
 # @cmd Show a diff of manifest changes
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to consider
-# @meta require-tools jsonnet,kbld,kubectl,kapp
+# @meta require-tools jsonnet,kbld,kapp
 diff() {
-	driver=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
-		--tla-str "key=${argc_workload:?}" \
-		-e "function(key) (import 'main.jsonnet').decls[key].driver")
 	manifest=$(_render_manifest)
-	case "$driver" in
-		kubectl)
-			kubectl diff -f <(echo "$manifest") || true
-			;;
-		kapp)
-			workload="${argc_workload:?}"
-			workload="${workload//_/-}"
-			kapp deploy -a "$workload" -c --diff-run -f <(echo "$manifest")
-			;;
-		*)
-			echo "Invalid driver: $driver" >&2
-			exit 1
-			;;
-	esac
+	kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
 }
 
 # @cmd Apply the current manifests to the environment
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![`choose_workload`]      Name of workload to consider
 # @flag   --yes                             Automatically accept kapp apps
-# @meta require-tools jsonnet,kbld,kubectl,kapp
+# @meta require-tools jsonnet,kbld,kapp
 apply() {
-	driver=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
-		--tla-str "key=${argc_workload:?}" \
-		-e "function(key) (import 'main.jsonnet').decls[key].driver")
 	manifest=$(_render_manifest)
-	case "$driver" in
-		kubectl)
-			kubectl apply -f <(echo "$manifest")
-			;;
-		kapp)
-			workload="${argc_workload:?}"
-			workload="${workload//_/-}"
-			kapp deploy -a "$workload" -c ${argc_yes:+--yes} -f <(echo "$manifest")
-			;;
-		*)
-			echo "Invalid driver: $driver" >&2
-			exit 1
-			;;
-	esac
+	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
 }
 
 # @cmd Sync all enabled workloads
 # @arg     name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @flag -n --dry-run                         Show the changes without applying them
-# @flag    --yes                             Automatically accept kapp apps
+# @flag -y --yes                             Automatically accept kapp apps
 sync() {
 	workloads=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
 		-e "local C = import 'main.jsonnet'; std.join('\n', std.sort(std.objectFields(C.config.workloads), function(id) C.decls[id].priority))")
@@ -152,7 +120,7 @@ sync() {
 		if [ ${argc_dry_run:+1} ]; then
 			argc diff "${argc_name:?}" "$workload"
 		else
-			argc apply "${argc_name:?}" "$workload"
+			argc apply ${argc_yes:+--yes} "${argc_name:?}" "$workload"
 		fi
 	done
 }

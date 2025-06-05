@@ -3,7 +3,6 @@ local utils = import 'utils.libsonnet';
 {
   auth_middleware: 'admin-authelia@kubernetescrd',
 
-  driver: 'kubectl',
   priority: 0,
 
   manifests(_config): {

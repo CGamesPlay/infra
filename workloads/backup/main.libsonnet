@@ -1,7 +1,6 @@
 local utils = import 'utils.libsonnet';
 
 {
-  driver: 'kubectl',
   priority: 20,
 
   manifests(_config): {

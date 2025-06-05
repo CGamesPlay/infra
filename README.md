@@ -65,9 +65,9 @@ You can create any number of clusters. Each stores its configuration in a subdir
 
 ### 4. Use Cluster
 
-The default cluster configuration is an empty k3s installation. Use `argc sync` to deploy the workloads from `main.tf` to the cluster.
+The default cluster configuration is an empty k3s installation. Use `argc sync` to deploy the workloads from `config.libsonnet` to the cluster.
 
-- [Dashboard](https://lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
+- [Traefik Dashboard](https://traefik.lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
 - `kubectl` - Use `env/local/kubeconfig.yml` to access
 - `kapp` - Use `env/local/kubeconfig.yml` to access
 - `argc sync local` - Run this to sync all workloads in `config.libsonnet`. This is equivalent to running `argc apply local $WORKLOAD` for each workload configured.
@@ -75,7 +75,7 @@ The default cluster configuration is an empty k3s installation. Use `argc sync` 
 - `argc diff local $WORKLOAD` - Show a diff of the rendered manifest and the current cluster state.
 - `argc apply local $WORKLOAD` - Apply the rendered manifest to the cluster.
 
-Note that there presently isn't any delete support for workloads. You can manually delete a workload using something like `argc render local $WORKLOAD | kubectl delete -f -`, before removing the workload from the `config.libsonnet` file.
+Workloads are managed using kapp, and can be deleted using `kapp delete`. There is presently no support for automatically pruning workloads that you remove from `config.libsonnet`.
 
 ### 5. Upgrade The Server
 

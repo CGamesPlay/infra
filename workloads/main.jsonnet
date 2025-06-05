@@ -3,7 +3,7 @@ local config = import 'config.libsonnet';
 local decls = {
   backup: import 'backup/main.libsonnet',
   core: import 'core/main.libsonnet',
-  cert_manager: import 'cert-manager/main.libsonnet',
+  'cert-manager': import 'cert-manager/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
 };

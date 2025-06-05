@@ -1,5 +1,4 @@
 {
-  driver: 'kapp',
   priority: 10,
 
   manifests(_config): {

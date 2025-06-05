@@ -8,7 +8,6 @@ local index_html = (
 )();
 
 {
-  driver: 'kapp',
   priority: 100,
 
   manifests(_config): {

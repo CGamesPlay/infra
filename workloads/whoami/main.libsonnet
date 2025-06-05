@@ -1,7 +1,6 @@
 local utils = import 'utils.libsonnet';
 
 {
-  driver: 'kapp',
   priority: 100,
 
   manifests(_config): {
@@ -46,7 +45,21 @@ local utils = import 'utils.libsonnet';
 
     local S = utils.service_ingress({ name: 'whoami' }, 'whoami', 'whoami.' + config.domain, 80),
     service: S.service,
-    ingress: S.ingress,
+    ingress: S.ingress {
+      metadata+: {
+        annotations+: {
+          'cert-manager.io/cluster-issuer': 'letsencrypt',
+        },
+      },
+      spec+: {
+        tls: [
+          {
+            secretName: 'whoami-tls',
+            hosts: ['whoami.' + config.domain],
+          },
+        ],
+      },
+    },
 
   },
 }
