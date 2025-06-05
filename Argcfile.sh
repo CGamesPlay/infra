@@ -104,7 +104,9 @@ diff() {
 			kubectl diff -f <(echo "$manifest") || true
 			;;
 		kapp)
-			kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
+			workload="${argc_workload:?}"
+			workload="${workload//_/-}"
+			kapp deploy -a "$workload" -c --diff-run -f <(echo "$manifest")
 			;;
 		*)
 			echo "Invalid driver: $driver" >&2
@@ -128,7 +130,9 @@ apply() {
 			kubectl apply -f <(echo "$manifest")
 			;;
 		kapp)
-			kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
+			workload="${argc_workload:?}"
+			workload="${workload//_/-}"
+			kapp deploy -a "$workload" -c ${argc_yes:+--yes} -f <(echo "$manifest")
 			;;
 		*)
 			echo "Invalid driver: $driver" >&2
@@ -180,6 +184,19 @@ destroy() {
 	./driver destroy "${argc_name:?}"
 	cd ../..
 	rm -rf "env/${argc_name:?}"
+}
+
+# @cmd Download external dependencies
+#
+# Required for each local checkout.
+prepare() {
+	if [ ! -f workloads/cert-manager/cert-manager.yml ]; then
+		curl -fsSL https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml -o workloads/cert-manager/cert-manager.yml
+		if ! shasum -c workloads/cert-manager/cert-manager.yml.sum; then
+			rm workloads/cert-manager/cert-manager.yml
+			exit 1
+		fi
+	fi
 }
 
 choose_env() {

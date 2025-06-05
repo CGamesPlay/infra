@@ -3,3 +3,4 @@ terraform.tfstate
 terraform.tfstate.*
 /vault.txt
 /env/local
+/workloads/cert-manager/cert-manager.yml

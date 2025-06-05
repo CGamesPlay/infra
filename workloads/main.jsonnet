@@ -3,15 +3,17 @@ local config = import 'config.libsonnet';
 local decls = {
   backup: import 'backup/main.libsonnet',
   core: import 'core/main.libsonnet',
+  cert_manager: import 'cert-manager/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
 };
 
 local extractManifests(obj) =
-  if std.objectHas(obj, 'apiVersion') && std.objectHas(obj, 'kind') then
-    [obj]
-  else if std.isObject(obj) then
-    std.flattenArrays([extractManifests(x) for x in std.objectValues(obj)])
+  if std.isObject(obj) then
+    if std.objectHas(obj, 'apiVersion') && std.objectHas(obj, 'kind') then
+      [obj]
+    else
+      std.flattenArrays([extractManifests(x) for x in std.objectValues(obj)])
   else if std.isArray(obj) then
     std.flattenArrays([extractManifests(x) for x in obj])
   else

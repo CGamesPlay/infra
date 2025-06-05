@@ -70,6 +70,14 @@ local utils = import 'utils.libsonnet';
       },
     },
 
+    adminNamespace: {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: 'admin',
+      },
+    },
+
     autheliaConfig: utils.immutable_config_map({
       apiVersion: 'v1',
       kind: 'ConfigMap',
