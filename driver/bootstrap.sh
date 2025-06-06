@@ -43,6 +43,9 @@ chmod +x /usr/local/bin/unseal
 echo "/dev/mapper/data /var/lib/rancher ext4 noauto 0 0" >>/etc/fstab
 echo "data ${BLOCK_DEVICE:?} none noauto,headless=true" >>/etc/crypttab
 
+# Set up a local (ephemeral) containerd storage area
+mkdir -m 700 /opt/containerd
+
 if [ ${FORMAT_DRIVE:+1} ]; then
 	KEY_FILE=/run/disk.key
 	set +x
@@ -63,9 +66,6 @@ if [ ${FORMAT_DRIVE:+1} ]; then
 	mkdir -m 700 /var/lib/rancher/k3s/server/static/charts
 	mkdir -m 700 /var/lib/rancher/k3s/server/manifests
 	mkdir -m 700 /var/lib/rancher/k3s/agent
-
-	# Set up a local (ephemeral) containerd storage area
-	mkdir -m 700 /opt/containerd
 	ln -s /opt/containerd /var/lib/rancher/k3s/agent/containerd
 
 	# Need to vendor the helm chart to ensure that it doesn't get

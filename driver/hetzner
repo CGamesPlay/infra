@@ -85,7 +85,11 @@ init() {
 # @cmd Unseal the cluster
 unseal() {
 	env_name=${1:?Environment name is required}
-	ssh -l root "$(hcloud server ip "$env_name")" -- unseal
+	tty=
+	if [ -t /dev/stdin ]; then
+		tty=1
+	fi
+	ssh -l root ${tty+-t} "$(hcloud server ip "$env_name")" -- unseal
 }
 
 # @cmd Replace the cluster's server with a new one

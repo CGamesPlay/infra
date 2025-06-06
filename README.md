@@ -67,12 +67,13 @@ You can create any number of clusters. Each stores its configuration in a subdir
 The default cluster configuration is an empty k3s installation. Use `argc sync` to deploy the workloads from `config.libsonnet` to the cluster.
 
 - [Traefik Dashboard](https://traefik.lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
+- `eval $(argc activate)` - set up the `KUBECONFIG` variable and others in the current terminal session. Useful to put this in your `.envrc` for use with direnv.
 - `kubectl` - Use `env/local/kubeconfig.yml` to access
 - `kapp` - Use `env/local/kubeconfig.yml` to access
-- `argc sync local` - Run this to sync all workloads in `config.libsonnet`. This is equivalent to running `argc apply local $WORKLOAD` for each workload configured.
-- `argc render local $WORKLOAD` - Show the rendered manifest for the given workload.
-- `argc diff local $WORKLOAD` - Show a diff of the rendered manifest and the current cluster state.
-- `argc apply local $WORKLOAD` - Apply the rendered manifest to the cluster.
+- `argc sync` - Run this to sync all workloads in `config.libsonnet`. This is equivalent to running `argc apply $WORKLOAD` for each workload configured.
+- `argc render $WORKLOAD` - Show the rendered manifest for the given workload.
+- `argc diff $WORKLOAD` - Show a diff of the rendered manifest and the current cluster state.
+- `argc apply $WORKLOAD` - Apply the rendered manifest to the cluster.
 
 Workloads are managed using kapp, and can be deleted using `kapp delete`. There is presently no support for automatically pruning workloads that you remove from `config.libsonnet`.
 

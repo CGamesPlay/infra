@@ -8,7 +8,7 @@ set -eu
 # Note that --driver and --age must come *before* the environment name
 # and all driver arguments.
 #
-# @arg    name $ENVIRONMENT        Name of the cluster
+# @arg    name                     Name of the cluster
 # @arg    args~                    Arguments for driver
 # @option --age $AGE_PUBLIC_KEY    Admin's age public key to use
 # @option --k3s-channel=stable     K3s channel to use
@@ -76,83 +76,85 @@ EOF
 }
 
 _render_manifest() {
-	jsonnet -J "env/${argc_name:?}" -J workloads -y \
+	jsonnet -J "env/${argc_environment:?}" -J workloads -y \
 		--tla-str "key=${argc_workload:?}" \
 		-e "function(key) (import 'main.jsonnet').manifests(key)"
 }
 
 # @cmd Render an environment's manifests for a particular workload
-# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![?`choose_workload`]      Name of workload to render
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @meta require-tools jsonnet,kapp
 render() {
 	_render_manifest
 }
 
 # @cmd Show a diff of manifest changes
-# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![?`choose_workload`]      Name of workload to consider
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @meta require-tools jsonnet,kapp
 diff() {
-	export KUBECONFIG="env/${argc_name:?}/kubeconfig.yml"
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c --diff-run -f <(echo "$manifest")
 }
 
 # @cmd Apply the current manifests to the environment
-# @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
 # @arg    workload![?`choose_workload`]      Name of workload to consider
-# @flag   --yes                             Automatically accept kapp apps
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @flag   --yes                              Automatically accept kapp apps
 # @meta require-tools jsonnet,kapp
 apply() {
-	export KUBECONFIG="env/${argc_name:?}/kubeconfig.yml"
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
 	manifest=$(_render_manifest)
 	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
 }
 
 # @cmd Sync all enabled workloads
-# @arg     name![`choose_env`] $ENVIRONMENT  Name of the cluster
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @flag -n --dry-run                         Show the changes without applying them
 # @flag -y --yes                             Automatically accept kapp apps
 sync() {
-	workloads=$(jsonnet -J "env/${argc_name:?}" -J workloads -S \
+	workloads=$(jsonnet -J "env/${argc_environment:?}" -J workloads -S \
 		-e "local C = import 'main.jsonnet'; std.join('\n', std.sort(std.objectFields(C.config.workloads), function(id) C.decls[id].priority))")
 	for workload in $workloads; do
 		if [ ${argc_dry_run:+1} ]; then
-			argc diff "${argc_name:?}" "$workload"
+			argc diff -e "${argc_environment:?}" "$workload"
 		else
-			argc apply ${argc_yes:+--yes} "${argc_name:?}" "$workload"
+			argc apply ${argc_yes:+--yes} -e "${argc_environment:?}" "$workload"
 		fi
 	done
 }
 
 # @cmd Unseal the cluster
-# @arg    name![`choose_env`]  Name of the cluster
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 unseal() {
-	cd "env/${argc_name:?}"
-	./driver unseal "${argc_name:?}"
+	cd "env/${argc_environment:?}"
+	./driver unseal "${argc_environment:?}"
 }
 
 # @cmd Replace the cluster's server with a new one
 # @flag   --driver-help        Show help for the driver
-# @arg    name![`choose_env`]  Name of the cluster
+# @option --k3s-channel=stable     K3s channel to use
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @arg    args~                Arguments for driver
 upgrade() {
-	cd "env/${argc_name:?}"
+	cd "env/${argc_environment:?}"
 	if [ ${argc_driver_help:+1} ]; then
 		exec ./driver upgrade --help
 	fi
-	./driver upgrade "${argc_name:?}" ${argc_args+"${argc_args[@]}"}
+	export INSTALL_K3S_CHANNEL="${argc_k3s_channel:?}"
+	./driver upgrade "${argc_environment:?}" ${argc_args+"${argc_args[@]}"}
 }
 
 # @cmd Destroy the cluster
-# @arg    name![`choose_env`]  Name of the cluster
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 destroy() {
-	[ ! -d "env/${argc_name:?}" ] && exit 0
-	cd "env/${argc_name:?}"
-	./driver destroy "${argc_name:?}"
+	[ ! -d "env/${argc_environment:?}" ] && exit 0
+	cd "env/${argc_environment:?}"
+	./driver destroy "${argc_environment:?}"
 	cd ../..
-	rm -rf "env/${argc_name:?}"
+	rm -rf "env/${argc_environment:?}"
 }
 
 # @cmd Download external dependencies
@@ -166,6 +168,15 @@ prepare() {
 			exit 1
 		fi
 	fi
+}
+
+# @cmd Activate the named environment
+#
+# Use this to set defaults for various environment variables.
+# @arg     name![`choose_env`] Name of the environment to activate
+activate() {
+	echo "export CLUSTER_ENVIRONMENT=${argc_name:?}"
+	echo "export KUBECONFIG=$(pwd)/env/${argc_name:?}/kubeconfig.yml"
 }
 
 choose_env() {
