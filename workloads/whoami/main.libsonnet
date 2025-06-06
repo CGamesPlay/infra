@@ -43,9 +43,7 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    local S = utils.service_ingress({ name: 'whoami' }, 'whoami', 'whoami.' + config.domain, 80),
-    service: S.service,
-    ingress: S.ingress,
+    serviceIngress: utils.service_ingress(config, { name: 'whoami' }, 'whoami', 80),
 
   },
 }

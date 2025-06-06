@@ -116,6 +116,23 @@ Here are the main directories in this repository
 
 ## Using Kubernetes
 
+### Basic Maintenance
+
+These are some basic commands that can be used for troubleshooting:
+
+```bash
+# View node status
+kubectl get nodes
+# Check control plane components
+kubectl get componentstatuses
+# Review Kubernetes events
+kubectl get events -A
+# List deployments (check for anything not fully ready)
+kubectl get deployments -A
+# Look for failed jobs
+kubectl get job -A
+```
+
 ### Deploying from CI/CD
 
 Unclear!

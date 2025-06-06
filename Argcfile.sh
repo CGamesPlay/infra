@@ -83,7 +83,7 @@ _render_manifest() {
 
 # @cmd Render an environment's manifests for a particular workload
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
-# @arg    workload![`choose_workload`]      Name of workload to render
+# @arg    workload![?`choose_workload`]      Name of workload to render
 # @meta require-tools jsonnet,kapp
 render() {
 	_render_manifest
@@ -91,7 +91,7 @@ render() {
 
 # @cmd Show a diff of manifest changes
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
-# @arg    workload![`choose_workload`]      Name of workload to consider
+# @arg    workload![?`choose_workload`]      Name of workload to consider
 # @meta require-tools jsonnet,kapp
 diff() {
 	export KUBECONFIG="env/${argc_name:?}/kubeconfig.yml"
@@ -101,7 +101,7 @@ diff() {
 
 # @cmd Apply the current manifests to the environment
 # @arg    name![`choose_env`] $ENVIRONMENT  Name of the cluster
-# @arg    workload![`choose_workload`]      Name of workload to consider
+# @arg    workload![?`choose_workload`]      Name of workload to consider
 # @flag   --yes                             Automatically accept kapp apps
 # @meta require-tools jsonnet,kapp
 apply() {

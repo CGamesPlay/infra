@@ -61,7 +61,7 @@ integration_test() {
 	"$ready_command" "$ip"
 
 	# Sanity check, server is offline
-	if http -v --verify no --headers "https://$ip" Host:auth.lvh.me; then
+	if http -v --verify no --headers "https://$ip" Host:authelia.lvh.me; then
 		echo "Sanity check failed; service reachable after reboot before unseal" >&2
 		exit 1
 	fi
@@ -74,7 +74,7 @@ integration_test() {
 	argc upgrade "$argc_environment" "${upgrade_args[@]}"
 
 	# Sanity check, server is offline
-	if http -v --verify no --headers "https://$ip" Host:auth.lvh.me; then
+	if http -v --verify no --headers "https://$ip" Host:authelia.lvh.me; then
 		echo "Sanity check failed; service reachable after reboot before unseal" >&2
 		exit 1
 	fi
@@ -89,7 +89,7 @@ integration_test() {
 
 assert_service_is_up() {
 	tries=0
-	while ! http -v --verify no --check-status --headers "https://$ip/" Host:auth.lvh.me; do
+	while ! http -v --verify no --check-status --headers "https://$ip/" Host:authelia.lvh.me; do
 		if [ $tries -ge 5 ]; then
 			echo "Failed to access Authelia" >&2
 			exit 1

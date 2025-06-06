@@ -73,9 +73,6 @@ local index_html = (
     }),
 
 
-    local S = utils.service_ingress({ name: 'dashboard' }, 'dashboard', config.domain, 8080, middlewares=[core.auth_middleware]),
-    service: S.service,
-    ingress: S.ingress,
-
+    serviceIngress: utils.service_ingress(config, { name: 'dashboard' }, 'dashboard', 8080, host=config.domain, middlewares=[core.auth_middleware]),
   },
 }

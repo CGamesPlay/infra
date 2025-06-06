@@ -27,10 +27,13 @@ local manifests(workload) =
   if !std.objectHas(config.workloads, workload) then
     error 'Manifest is disabled for environment: ' + workload
   else
-    local globalConfig = { domain: config.domain };
+    local globalConfig = {
+      domain: config.domain,
+      wildcardCertificate: std.get(config, 'wildcardCertificate', false),
+    };
     local moduleConfig = globalConfig + config.workloads[workload];
-    local manifests = module.manifests(moduleConfig);
-    extractManifests(manifests);
+    local manifestTree = module.manifests(moduleConfig);
+    extractManifests(manifestTree);
 
 {
   decls: decls,

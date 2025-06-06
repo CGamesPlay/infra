@@ -48,7 +48,10 @@ local utils = import 'utils.libsonnet';
               middlewares: [{ name: $.auth_middleware }],
               // NOTE: certificate is manually requested in cert-manager
               // workload.
-              tls: { secretName: 'traefik-tls' },
+              tls: if config.wildcardCertificate then
+                { secretName: 'tls-' + config.domain }
+              else
+                { secretName: 'traefik-tls' },
             },
           },
           providers: {
@@ -102,7 +105,7 @@ local utils = import 'utils.libsonnet';
             cookies: [
               {
                 domain: config.domain,
-                authelia_url: 'https://auth.' + config.domain,
+                authelia_url: 'https://authelia.' + config.domain,
                 inactivity: '1 day',
                 expiration: '1 day',
               },
@@ -192,11 +195,7 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    local S = utils.service_ingress({ name: 'authelia', namespace: 'admin' }, 'authelia', 'auth.' + config.domain, 9091),
-    autheliaService: S.service,
-    autheliaIngress: S.ingress,
-
-    autheliaServiceIngress: utils.service_ingress({ name: 'authelia', namespace: 'admin' }, 'authelia', 'auth.' + config.domain, 9091),
+    autheliaServiceIngress: utils.service_ingress(config, { name: 'authelia', namespace: 'admin' }, 'authelia', 9091),
 
     autheliaMiddleware: {
       apiVersion: 'traefik.io/v1alpha1',

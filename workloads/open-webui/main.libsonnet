@@ -171,8 +171,6 @@ local utils = import '../utils.libsonnet';
       },
     },
 
-    local S = utils.service_ingress({ name: 'open-webui' }, 'open-webui', 'open-webui.' + config.domain, 8080),
-    service: S.service,
-    ingress: S.ingress,
+    serviceIngress: utils.service_ingress(config, { name: 'open-webui' }, 'open-webui', 8080),
   },
 }

@@ -1,0 +1,9 @@
+users:
+  admin:
+    disabled: false
+    displayname: 'Authelia User'
+    # Password is authelia
+    password: '$argon2id$v=19$m=65536,t=3,p=4$cMQnNkw8WD8WJzJfF85euw$4n6Ac8UsLpdvAKuYgO6RHM0UgpYC7nbB8vPa+F/8MC4'
+    email: 'ry@cgamesplay.com'
+    groups:
+      - 'admin'

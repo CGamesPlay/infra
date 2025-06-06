@@ -196,8 +196,6 @@ local utils = import '../utils.libsonnet';
       },
     },
 
-    local S = utils.service_ingress({ name: 'seafile' }, 'seafile', 'seafile.' + config.domain, 80),
-    service: S.service,
-    ingress: S.ingress,
+    serviceIngress: utils.service_ingress(config, { name: 'seafile' }, 'seafile', 80),
   },
 }

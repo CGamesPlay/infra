@@ -9,7 +9,9 @@
     immutable: true,
   },
 
-  service_ingress(metadata, app, host, port, middlewares=[]): {
+  service_ingress(config, metadata, app, port, host=null, middlewares=[]): {
+    local host1 = if host == null then app + '.' + config.domain else host,
+
     service: {
       apiVersion: 'v1',
       kind: 'Service',
@@ -36,7 +38,7 @@
       spec: {
         rules: [
           {
-            host: host,
+            host: host1,
             http: {
               paths: [
                 {
@@ -54,10 +56,16 @@
           },
         ],
         tls: [
-          {
-            secretName: app + '-tls',
-            hosts: [host],
-          },
+          if config.wildcardCertificate && (std.endsWith(host1, '.' + config.domain) || host1 == config.domain) then
+            {
+              secretName: 'tls-' + config.domain,
+              hosts: [config.domain, '*.' + config.domain],
+            }
+          else
+            {
+              secretName: app + '-tls',
+              hosts: [host1],
+            },
         ],
       },
     },
