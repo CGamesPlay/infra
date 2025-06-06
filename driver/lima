@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# @describe Set up a local cluster with Lima
+
+set -eu
+
+# @cmd Initialize a new environment
+# @flag --validate-args-only  Don't do anything other than validate arguments
+# @meta require-tools limactl,kubectl,age-keygen
+init() {
+	env_name=${1:?Environment name is required}
+	if [ -n "$(limactl disk list --json "$env_name" 2>/dev/null)" ]; then
+		echo "limactl: disk $env_name already exists" >&2
+		exit 1
+	fi
+	if limactl list "$env_name" >/dev/null 2>&1; then
+		echo "limactl: machine $env_name already exists" >&2
+		exit 1
+	fi
+
+	[ ${argc_validate_args_only+1} ] && exit 0
+
+	limactl disk create "$env_name" --format raw --size $(( 5 * 1024 * 1024 * 1024 ))
+	limactl create \
+		--name="$env_name" \
+		--disk=20 \
+		--yes \
+		../../driver/lima-template.yml \
+		--set '.additionalDisks += [{"name": "'"$env_name"'", "format": false}]'
+	limactl start "$env_name"
+
+	limactl shell "$env_name" sudo \
+		DISK_PASSWORD="${DISK_PASSWORD:?}" \
+		BLOCK_DEVICE=/dev/vdb \
+		FORMAT_DRIVE=1 \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		sh < ../../driver/bootstrap.sh
+	limactl shell "$env_name" sudo cat /etc/rancher/k3s/k3s.yaml > kubeconfig.yml
+	limactl shell "$env_name" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+}
+
+# @cmd Unseal the cluster
+unseal() {
+	env_name=${1:?Environment name is required}
+	limactl shell "$env_name" sudo unseal
+}
+
+# @cmd Replace the cluster's server with a new one
+#
+# The Lima driver is designed for development use, so does not support
+# snapshotting to roll back a failed deployment. To drive this home,
+# the --delete-existing flag is required.
+# @flag --delete-existing  Delete the existing server before creating the new one
+upgrade() {
+	env_name=${1:?Environment name is required}
+	if [ ! ${argc_delete_existing+1} ]; then
+		echo "--delete-existing: required" >&2
+		exit 1
+	fi
+	limactl stop "$env_name"
+	limactl delete "$env_name"
+	limactl create \
+		--name="$env_name" \
+		--disk=20 \
+		--yes \
+		../../driver/lima-template.yml \
+		--set '.additionalDisks += [{"name": "'"$env_name"'", "format": false}]'
+	limactl start "$env_name"
+
+	limactl shell "$env_name" sudo \
+		BLOCK_DEVICE=/dev/vdb \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		sh < ../../driver/bootstrap.sh
+}
+
+# @cmd Delete the cluster
+destroy() {
+	env_name=${1:?Environment name is required}
+	if limactl list "$env_name" >/dev/null 2>&1; then
+		limactl delete --force "$env_name"
+	fi
+	if [ -n "$(limactl disk list --json "$env_name" 2>/dev/null)" ]; then
+		limactl disk delete "$env_name"
+	fi
+}
+
+if ! command -v argc >/dev/null; then
+	echo "This command requires argc. Install from https://github.com/sigoden/argc" >&2
+	exit 100
+fi
+eval "$(argc --argc-eval "$0" "$@")"

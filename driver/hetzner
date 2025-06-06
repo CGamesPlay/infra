@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# @describe Set up a production cluster with Hetzner
+set -euo pipefail
+
+# @cmd Initialize a new environment
+# @flag --validate-args-only           Don't do anything other than validate arguments
+# @option --location!                  Location to create the cluster in
+# @option --size!                      Size for data volume
+# @option --type!                      Server type to use
+# @option --image=ubuntu-24.04         Image to use for server
+# @option --ssh-key=`default_ssh_key`  SSH key to use
+# @meta require-tools kubectl,terraform,age-keygen
+# @meta require-tools hcloud,jq,sops,age-keygen,nc
+init() {
+	env_name=${1:?Environment name is required}
+
+	if hcloud firewall describe "$env_name" >/dev/null 2>&1; then
+		echo "hcloud: firewall $env_name already exists" >&2
+		exit 1
+	fi
+	if hcloud volume describe "data-$env_name" >/dev/null 2>&1; then
+		echo "hcloud: volume data-$env_name already exists" >&2
+		exit 1
+	fi
+
+	[ ${argc_validate_args_only+1} ] && exit 0
+
+	hcloud firewall create \
+		--name "$env_name" \
+		--label env="$env_name" \
+		--rules-file ../../driver/hetzner-firewall.json
+	volume=$(hcloud volume create \
+		--name "data-$env_name" \
+		--label env="$env_name" \
+		--size "${argc_size:?}" \
+		--location "${argc_location:?}" \
+		-o json | jq '.volume.id')
+	user_data=$(cat <<-EOF
+	#cloud-config
+	timezone: UTC
+	EOF
+	)
+	args=(
+		--name "$env_name"
+		--type "${argc_type:?}"
+		--location "${argc_location:?}"
+		--image "${argc_image:?}"
+		--firewall "$env_name"
+		--ssh-key "${argc_ssh_key:?}"
+		--volume "$volume"
+		--user-data-from-file <(echo "$user_data")
+		--label env="$env_name"
+	)
+	server=$(hcloud server create -o json "${args[@]}")
+	server_ip=$(echo "$server" | jq -r '.server.public_net.ipv4.ip')
+
+	# Mark the primary IPs as belonging to this environment
+	ipv4_id=$(echo "$server" | jq -r '.server.public_net.ipv4.id')
+	if [ "$ipv4_id" ]; then
+		hcloud primary-ip add-label "$ipv4_id" env="$env_name"
+		hcloud primary-ip update "$ipv4_id" --auto-delete=false
+	fi
+	ipv6_id=$(echo "$server" | jq -r '.server.public_net.ipv6.id')
+	if [ "$ipv6_id" ]; then
+		hcloud primary-ip add-label "$ipv6_id" env="$env_name"
+		hcloud primary-ip update "$ipv6_id" --auto-delete=false
+	fi
+
+	wait_for_ssh "$server_ip"
+	# shellcheck disable=SC2087
+	ssh -o StrictHostKeyChecking=no \
+		-l root "$server_ip" \
+		DISK_PASSWORD="${DISK_PASSWORD:?}" \
+		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
+		FORMAT_DRIVE=1 \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		sh <<-EOF
+	cloud-init status -w
+	$(cat ../../driver/bootstrap.sh)
+	EOF
+	ssh -l root "$server_ip" cat /etc/rancher/k3s/k3s.yaml | sed -e "s@https://127.0.0.1:6443@https://$server_ip:6443@" > kubeconfig.yml
+	ssh -l root "$server_ip" cat /tmp/sops-age-recipient.txt > sops-age-recipient.txt
+}
+
+# @cmd Unseal the cluster
+unseal() {
+	env_name=${1:?Environment name is required}
+	ssh -l root "$(hcloud server ip "$env_name")" -- unseal
+}
+
+# @cmd Replace the cluster's server with a new one
+#
+# In case something goes wrong, delete the old server and primary IPs,
+# then use --ignore-existing.
+# @flag   --ignore-existing            Do not attempt to reuse an old server
+# @option --type!                      Server type to use
+# @option --image=ubuntu-24.04         Image to use for server
+# @option --ssh-key=`default_ssh_key`  SSH key to use
+upgrade() {
+	env_name=${1:?Environment name is required}
+	volume=$(hcloud volume describe "data-$env_name" -o json)
+	server_create_args=()
+	if [ ${argc_ignore_existing+1} ]; then
+		server_create_args+=(--name "$env_name")
+	else
+		old_server_id=$(echo "$volume" | jq -r '.server')
+		old_server=$(hcloud server describe "$old_server_id" -o json)
+		server_name=$(echo "$old_server" | jq -r '.name')
+		server_create_args+=(--name "$server_name")
+		ipv4_id=$(echo "$old_server" | jq -r '.public_net.ipv4.id')
+		if [ "$ipv4_id" ]; then
+			server_create_args+=(--primary-ipv4 "$ipv4_id")
+		fi
+		ipv6_id=$(echo "$old_server" | jq -r '.public_net.ipv6.id')
+		if [ "$ipv6_id" ]; then
+			server_create_args+=(--primary-ipv6 "$ipv6_id")
+		fi
+		hcloud server shutdown --wait "$env_name"
+		hcloud server delete "$env_name"
+	fi
+	user_data=$(cat <<-EOF
+	#cloud-config
+	timezone: UTC
+	EOF
+	)
+	server_create_args+=(
+		--type "${argc_type:?}"
+		--location "$(echo "$volume" | jq -r '.location.name')"
+		--image "${argc_image:?}"
+		--firewall "$env_name"
+		--ssh-key "${argc_ssh_key:?}"
+		--volume "$(echo "$volume" | jq -r '.id')"
+		--user-data-from-file <(echo "$user_data")
+		--label env="$env_name"
+	)
+
+	server=$(hcloud server create -o json "${server_create_args[@]}")
+	server_ip=$(echo "$server" | jq -r '.server.public_net.ipv4.ip')
+
+	if [ ${argc_ignore_existing+1} ]; then
+		# Mark the primary IPs as belonging to this environment
+		ipv4_id=$(echo "$server" | jq -r '.server.public_net.ipv4.id')
+		if [ "$ipv4_id" ]; then
+			hcloud primary-ip add-label "$ipv4_id" env="$env_name"
+			hcloud primary-ip update "$ipv4_id" --auto-delete=false
+		fi
+		ipv6_id=$(echo "$server" | jq -r '.server.public_net.ipv6.id')
+		if [ "$ipv6_id" ]; then
+			hcloud primary-ip add-label "$ipv6_id" env="$env_name"
+			hcloud primary-ip update "$ipv6_id" --auto-delete=false
+		fi
+	fi
+
+	ssh-keygen -R "$server_ip"
+	wait_for_ssh "$server_ip"
+	# shellcheck disable=SC2087
+	ssh -o StrictHostKeyChecking=no \
+		-l root "$server_ip" \
+		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$(echo "$volume" | jq -r '.id')" \
+		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		sh <<-EOF
+	cloud-init status -w
+	$(cat ../../driver/bootstrap.sh)
+	EOF
+
+	cat <<-EOF
+	Upgrade completed. Unseal the server and verify that everything is
+	still working properly.
+	EOF
+}
+
+# @cmd Delete the cluster
+destroy() {
+	env_name=${1:?Environment name is required}
+	ssh-keygen -R "$(hcloud server ip "$env_name")"
+	for resource in server firewall primary-ip volume; do
+		hcloud "$resource" list -l env="$env_name" -o noheader -o columns=id | xargs hcloud "$resource" delete
+	done
+}
+
+# Find any SSH key which is loaded in the local ssh-agent.
+default_ssh_key() {
+	patterns=()
+	for key in $(ssh-add -lE md5 | cut -d: -f2- | awk '{ print $1 }'); do
+		patterns+=(-e "$key")
+	done
+	hcloud ssh-key list | grep "${patterns[@]}" | awk '{ print $1 }'
+	if [[ "${PIPESTATUS[1]}" -ne 0 ]]; then
+		echo "No suitable ssh key found and none specified" >&2
+		return 1
+	fi
+}
+
+wait_for_ssh() {
+	# shellcheck disable=SC2016
+	timeout 300 sh -c 'until nc -z $0 $1; do sleep 1; done' "$1" 22
+}
+
+if ! command -v argc >/dev/null; then
+	echo "This command requires argc. Install from https://github.com/sigoden/argc" >&2
+	exit 100
+fi
+eval "$(argc --argc-eval "$0" "$@")"

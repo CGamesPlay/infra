@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# @describe Run an integration test
+#
+# Creates a new cluster, ensures it can reboot and upgrade the server
+# without anything breaking.
+# @option --environment=test  Environment name to use for the test
+# @meta inherit-flag-options
+# @meta require-tools http
+
+set -euo pipefail
+
+init_args=()
+upgrade_args=()
+ip_command=()
+reboot_command=()
+ready_command=false
+
+# @cmd Run the integration test on Lima
+lima() {
+	init_args=(--driver=lima "$argc_environment")
+	upgrade_args=("$argc_envrionment" --delete-existing)
+	ip_command=(echo 127.0.0.1)
+	reboot_command=(limactl restart "$argc_environment")
+	ready_command=true
+	integration_test
+}
+
+# @cmd Run the integration test on Hetzner
+hetzner() {
+	init_args=(--driver=hetzner "$argc_environment" --location nbg1 --type cx22 --size 20)
+	upgrade_args=("$argc_environment" --type cx22)
+	ip_command=(hcloud server ip "$argc_environment")
+	reboot_command=(hcloud server reboot "$argc_environment")
+	ready_command=hetzner_ready
+	integration_test
+}
+
+hetzner_ready() {
+	# shellcheck disable=SC2016
+	timeout 300 sh -c 'until nc -z $0 $1; do sleep 1; done' "$1" 22
+}
+
+integration_test() {
+	if [ -d "env/${argc_environment:?}" ]; then
+		echo "${argc_environment:?}: already exists"
+	fi
+	set -x
+	disk_password=$(argc init "${init_args[@]}" | tee /dev/stderr | grep -A3 "DISK ENCRYPTION PASSWORD" | tail -1)
+	ip=$("${ip_command[@]}")
+
+	echo "Disk password is $disk_password"
+	echo "IP address is $ip"
+	export KUBECONFIG="env/$argc_environment/kubeconfig.yml"
+
+	argc sync "$argc_environment" -y
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n kube-system endpoints/traefik --timeout=30s
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n admin endpoints/authelia --timeout=30s
+	assert_service_is_up
+
+	"${reboot_command[@]}"
+	"$ready_command" "$ip"
+
+	# Sanity check, server is offline
+	if http -v --verify no --headers "https://$ip" Host:authelia.lvh.me; then
+		echo "Sanity check failed; service reachable after reboot before unseal" >&2
+		exit 1
+	fi
+
+	echo "$disk_password" | argc unseal "$argc_environment"
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n kube-system endpoints/traefik --timeout=30s
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n admin endpoints/authelia --timeout=30s
+	assert_service_is_up
+
+	argc upgrade "$argc_environment" "${upgrade_args[@]}"
+
+	# Sanity check, server is offline
+	if http -v --verify no --headers "https://$ip" Host:authelia.lvh.me; then
+		echo "Sanity check failed; service reachable after reboot before unseal" >&2
+		exit 1
+	fi
+
+	echo "$disk_password" | argc unseal "$argc_environment"
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n kube-system endpoints/traefik --timeout=30s
+	kubectl wait --for=jsonpath='{.subsets[*].addresses[0].ip}' -n admin endpoints/authelia --timeout=30s
+	assert_service_is_up
+
+	argc destroy "$argc_environment"
+}
+
+assert_service_is_up() {
+	tries=0
+	while ! http -v --verify no --check-status --headers "https://$ip/" Host:authelia.lvh.me; do
+		if [ $tries -ge 5 ]; then
+			echo "Failed to access Authelia" >&2
+			exit 1
+		fi
+		sleep 5
+		tries=$((tries + 1))
+	done
+}
+
+if ! command -v argc >/dev/null; then
+	echo "This command requires argc. Install from https://github.com/sigoden/argc" >&2
+	exit 100
+fi
+eval "$(argc --argc-eval "$0" "$@")"

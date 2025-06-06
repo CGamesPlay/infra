@@ -1,0 +1,50 @@
+[
+  {
+    "description": "ping",
+    "direction": "in",
+    "protocol": "icmp",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": "ssh",
+    "direction": "in",
+    "protocol": "tcp",
+    "port": "22",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": "http",
+    "direction": "in",
+    "protocol": "tcp",
+    "port": "80",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": null,
+    "direction": "in",
+    "protocol": "udp",
+    "port": "80",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": "https",
+    "direction": "in",
+    "protocol": "tcp",
+    "port": "443",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": "quic",
+    "direction": "in",
+    "protocol": "udp",
+    "port": "443",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  },
+  {
+    "description": "k8s",
+    "direction": "in",
+    "protocol": "tcp",
+    "port": "6443",
+    "source_ips": ["0.0.0.0/0", "::/0"]
+  }
+]
