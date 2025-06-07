@@ -175,6 +175,7 @@ prepare() {
 # Use this to set defaults for various environment variables.
 # @arg     name![`choose_env`] Name of the environment to activate
 activate() {
+	echo "echo 'Activating environment ${argc_name:?}'"
 	echo "export CLUSTER_ENVIRONMENT=${argc_name:?}"
 	echo "export KUBECONFIG=$(pwd)/env/${argc_name:?}/kubeconfig.yml"
 }

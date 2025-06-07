@@ -67,7 +67,7 @@ You can create any number of clusters. Each stores its configuration in a subdir
 The default cluster configuration is an empty k3s installation. Use `argc sync` to deploy the workloads from `config.libsonnet` to the cluster.
 
 - [Traefik Dashboard](https://traefik.lvh.me/) - accessible via the self-signed certificate. Log in with authelia / authelia.
-- `eval $(argc activate)` - set up the `KUBECONFIG` variable and others in the current terminal session. Useful to put this in your `.envrc` for use with direnv.
+- `eval "$(argc activate $ENVIRONMENT)"` - set up the `KUBECONFIG` variable and others in the current terminal session. Useful to put this in your `.envrc` for use with direnv.
 - `kubectl` - Use `env/local/kubeconfig.yml` to access
 - `kapp` - Use `env/local/kubeconfig.yml` to access
 - `argc sync` - Run this to sync all workloads in `config.libsonnet`. This is equivalent to running `argc apply $WORKLOAD` for each workload configured.
@@ -154,4 +154,4 @@ The steps required to make this setup "production-ready" are:
 
 ## Changes
 
-- 2025-05-30: The infrastructure underwent a substantial change from Nomad to Kubernetes. The older version can be found [here](https://github.com/CGamesPlay/infra/commit/35120ca5e04795cad60536bc5f91c0c6f89f4d15). It uses Nomad, Consul, and Vault, as well as Ansible for managing the configuration of the server.
+- 2025-05-30: The infrastructure underwent a substantial change from Nomad to Kubernetes. The older version can be found [here](https://github.com/CGamesPlay/infra/tree/35120ca5e04795cad60536bc5f91c0c6f89f4d15). It uses Nomad, Consul, and Vault, as well as Ansible for managing the configuration of the server.
