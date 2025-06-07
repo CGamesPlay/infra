@@ -10,7 +10,7 @@ local utils = import 'utils.libsonnet';
       apiVersion: 'batch/v1',
       kind: 'CronJob',
       metadata: {
-        name: 'restic',
+        name: 'backup',
         namespace: 'admin',
       },
       spec: {
@@ -20,7 +20,7 @@ local utils = import 'utils.libsonnet';
             backoffLimit: 4,
             template: {
               metadata: {
-                name: 'restic',
+                name: 'backup',
               },
               spec: {
                 restartPolicy: 'Never',
@@ -29,12 +29,16 @@ local utils = import 'utils.libsonnet';
                     name: 'backup',
                     image: 'alpine:latest',
 
+                    env: [
+                      { name: 'RESTIC_CACHE_DIR', value: '/cache' },
+                    ],
                     envFrom: [
-                      { secretRef: { name: 'restic' } },
+                      { secretRef: { name: 'backup-secrets' } },
                     ],
                     volumeMounts: [
-                      { name: 'restic-script', mountPath: '/app' },
+                      { name: 'backup-script', mountPath: '/app' },
                       { name: 'var-lib-rancher', mountPath: '/var/lib/rancher' },
+                      { name: 'opt-backup-cache', mountPath: '/cache' },
                     ],
 
                     command: ['/app/backup.sh'],
@@ -42,7 +46,7 @@ local utils = import 'utils.libsonnet';
                 ],
                 volumes: [
                   {
-                    name: 'restic-script',
+                    name: 'backup-script',
                     configMap: {
                       name: module.configMap.metadata.name,
                       defaultMode: std.parseOctal('0755'),
@@ -51,6 +55,13 @@ local utils = import 'utils.libsonnet';
                   {
                     name: 'var-lib-rancher',
                     hostPath: { path: '/var/lib/rancher' },
+                  },
+                  {
+                    name: 'opt-backup-cache',
+                    hostPath: {
+                      path: '/opt/backup-cache',
+                      type: 'DirectoryOrCreate',
+                    },
                   },
                 ],
               },
@@ -65,7 +76,7 @@ local utils = import 'utils.libsonnet';
       kind: 'ConfigMap',
       metadata: {
         namespace: 'admin',
-        name: 'restic-script-',
+        name: 'backup-script-',
       },
       data: {
         'backup.sh': importstr 'backup.sh',

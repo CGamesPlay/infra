@@ -106,6 +106,15 @@ Here is a checklist of things you should do when you are ready to deploy your cl
 1. Turn on accidental deletion protection for the volume and primary IPs: `hcloud volume enable-protection` and `hcloud primary-ip enable-protection`.
 1. Configure DNS for the main domain and subdomains.
 
+You may want to set up your SSH config for access to the server. This is fine, but please note that `argc upgrade` will cause the SSH host key to change. You can avoid this by using the `Hostname` directive in your SSH config. The `argc upgrade` script will automatically update the host key when the upgrade is performed.
+
+```bash
+# Example configuration for SSH
+Host my.cluster.dns
+  Hostname 188.245.147.159
+  User root
+```
+
 ## Repo Organization
 
 Here are the main directories in this repository

@@ -3,6 +3,7 @@
   wildcardCertificate: true,
 
   workloads: {
+    backup: {},
     core: {
       secrets: importstr 'secrets.yml',
       authelia_users_yaml: importstr 'authelia-users.yml',
