@@ -40,6 +40,11 @@ local utils = import 'utils.libsonnet';
             },
             metrics: null,
           },
+          service: {
+            spec: {
+              externalTrafficPolicy: 'Local',
+            },
+          },
           ingressRoute: {
             dashboard: {
               enabled: true,
