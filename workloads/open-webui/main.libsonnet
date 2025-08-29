@@ -6,7 +6,7 @@ local utils = import '../utils.libsonnet';
   manifests(_config): {
     local module = self,
     local config = {
-      image_tag: '0.5.18',
+      image_tag: '0.6.15',
     } + _config,
 
     deployment: {

@@ -15,7 +15,6 @@
     },
     chess2online: {},
     dashboard: {},
-    'open-webui': {},
     seafile: {},
   },
 }
