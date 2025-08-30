@@ -135,7 +135,6 @@ local utils = import 'utils.libsonnet';
         name: 'authelia',
       },
       spec: {
-        storageClassName: 'local-path',
         accessModes: ['ReadWriteOnce'],
         resources: {
           requests: {

@@ -77,6 +77,20 @@ The default cluster configuration is an empty k3s installation. Use `argc sync` 
 
 Workloads are managed using kapp, and can be deleted using `kapp delete`. There is presently no support for automatically pruning workloads that you remove from `config.libsonnet`.
 
+#### Deprovisioning Workloads
+
+You can use `kapp delete -a $NAME` to delete all resources associated with a workload. Note that the default reclaim policy of dynamically-provisioned PersistentVolumes (e.g. local-path PVs) is "Delete". You may want to change this to "Retain". Since the PersistentVolume isn't specified in the jsonnet configuration, you should [do this using kubectl](https://kubernetes.io/docs/tasks/administer-cluster/change-pv-reclaim-policy/#changing-the-reclaim-policy-of-a-persistentvolume).
+
+To reuse this volume at a later date, you should patch it again to set a claimRef matching the original PersistentVolumeClaim, then deploy the workload as usual.
+
+```bash
+kubectl patch pv <your-pv-name> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+kubectl get pv # Verify that change has been applied.
+
+# Untested commands
+kubectl patch pv <your-pv-name> -p '{"spec":{"claimRef":{"namespace":"default","name":"your-pvc-name"}}}'
+```
+
 ### 5. Upgrade The Server
 
 **Option A: My Server is a "pet"**
