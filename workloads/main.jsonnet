@@ -6,6 +6,7 @@ local decls = {
   'cert-manager': import 'cert-manager/main.libsonnet',
   chess2online: import 'chess2online/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
+  forgejo: import 'forgejo/main.libsonnet',
   'open-webui': import 'open-webui/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
