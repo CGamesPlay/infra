@@ -5,6 +5,7 @@
     local module = self,
     local config = {
       email: error 'email required for LetsEncrypt',
+      selfSigned: false,
       staging: true,
       hostedZoneID: error 'hostedZoneID is required when using wildcardCertificate',
     } + _config,
@@ -13,6 +14,7 @@
       'https://acme-staging-v02.api.letsencrypt.org/directory'
     else
       'https://acme-v02.api.letsencrypt.org/directory',
+    local issuerName = if config.selfSigned then 'selfsigned' else 'letsencrypt',
 
 
     vendor: manifests,
@@ -21,9 +23,9 @@
       apiVersion: 'cert-manager.io/v1',
       kind: 'ClusterIssuer',
       metadata: {
-        name: 'letsencrypt',
+        name: issuerName,
       },
-      spec: {
+      spec: if config.selfSigned then { selfSigned: {} } else {
         acme: {
           email: config.email,
           server: server,
@@ -71,7 +73,7 @@
       spec: {
         secretName: 'traefik-tls',
         dnsNames: ['traefik.' + config.domain],
-        issuerRef: { name: 'letsencrypt' },
+        issuerRef: { name: issuerName },
       },
     },
   },
