@@ -1,4 +1,98 @@
 {
+  // Declares the typical Ingress needed to expose a service via Traefik. The
+  // matching Service object must expose a port named 'http'.
+  local traefik_ingress(module_config, _ingress_config) = {
+    local domain = module_config.domain,
+    local ingress_config = {
+      // Required. Name of the workload.
+      app: error 'App name required',
+      // Optional. Override namespace.
+      namespace: null,
+      // Optional. Override the public host.
+      host: _ingress_config.app + '.' + domain,
+      // Optional. Traefik middlewares to apply.
+      middlewares: [],
+    } + _ingress_config,
+
+    apiVersion: 'networking.k8s.io/v1',
+    kind: 'Ingress',
+    metadata: {
+      name: ingress_config.app,
+      annotations: {
+        'cert-manager.io/cluster-issuer': 'letsencrypt',
+      } + if ingress_config.middlewares != [] then
+        { 'traefik.ingress.kubernetes.io/router.middlewares': std.join(',', ingress_config.middlewares) }
+      else {},
+    } + if ingress_config.namespace != null then { namespace: ingress_config.namespace } else {},
+    spec: {
+      rules: [
+        {
+          host: ingress_config.host,
+          http: {
+            paths: [
+              {
+                path: '/',
+                pathType: 'Prefix',
+                backend: {
+                  service: {
+                    name: ingress_config.app,
+                    port: { name: 'http' },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+      tls: [
+        if module_config.wildcardCertificate && (std.endsWith(ingress_config.host, '.' + domain) || ingress_config.host == domain) then
+          {
+            secretName: 'tls-' + domain,
+            hosts: [domain, '*.' + domain],
+          }
+        else
+          {
+            secretName: ingress_config.app + '-tls',
+            hosts: [ingress_config.host],
+          },
+      ],
+    },
+  },
+  traefik_ingress: traefik_ingress,
+
+  // Typical service with optional ingress configuration.
+  simple_service(module_config, _service_config):
+    local domain = module_config.domain;
+    local service_config = {
+      // Required. Name of the workload.
+      app: error 'App name required',
+      // Optional. Override namespace.
+      namespace: null,
+      // Required. Port to connect to.
+      port: error 'Port required',
+      // Optional. Disable the default ingress route.
+      ingress: true,
+    } + _service_config;
+    {
+      service: {
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          name: service_config.app,
+          namespace: service_config.namespace,
+        },
+        spec: {
+          selector: {
+            app: service_config.app,
+          },
+          ports: [
+            { name: 'http', port: service_config.port },
+          ],
+        },
+      },
+      ingress: if service_config.ingress then traefik_ingress(module_config, service_config) else {},
+    },
+
   // Helper to hash config data for use as an immutable ConfigMap object.
   // The existing metadata.name is treated as a prefix and should end in
   // "-".
@@ -7,68 +101,6 @@
       name: manifest.metadata.name + std.md5(std.manifestJson(manifest.data)),
     },
     immutable: true,
-  },
-
-  service_ingress(config, metadata, app, port, host=null, middlewares=[]): {
-    local host1 = if host == null then app + '.' + config.domain else host,
-
-    service: {
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: metadata,
-      spec: {
-        selector: {
-          app: app,
-        },
-        ports: [
-          { port: port },
-        ],
-      },
-    },
-    ingress: {
-      apiVersion: 'networking.k8s.io/v1',
-      kind: 'Ingress',
-      metadata: metadata {
-        annotations+: {
-          'cert-manager.io/cluster-issuer': 'letsencrypt',
-        } + if middlewares != [] then
-          { 'traefik.ingress.kubernetes.io/router.middlewares': std.join(',', middlewares) }
-        else {},
-      },
-      spec: {
-        rules: [
-          {
-            host: host1,
-            http: {
-              paths: [
-                {
-                  path: '/',
-                  pathType: 'Prefix',
-                  backend: {
-                    service: {
-                      name: app,
-                      port: { number: port },
-                    },
-                  },
-                },
-              ],
-            },
-          },
-        ],
-        tls: [
-          if config.wildcardCertificate && (std.endsWith(host1, '.' + config.domain) || host1 == config.domain) then
-            {
-              secretName: 'tls-' + config.domain,
-              hosts: [config.domain, '*.' + config.domain],
-            }
-          else
-            {
-              secretName: app + '-tls',
-              hosts: [host1],
-            },
-        ],
-      },
-    },
   },
 
   // This function substitutes all occurrences of `${foo}` with

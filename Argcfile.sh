@@ -118,6 +118,7 @@ sync() {
 	workloads=$(jsonnet -J "env/${argc_environment:?}" -J workloads -S \
 		-e "local C = import 'main.jsonnet'; std.join('\n', std.sort(std.objectFields(C.config.workloads), function(id) C.decls[id].priority))")
 	for workload in $workloads; do
+		echo "*** $workload ***"
 		if [ ${argc_dry_run:+1} ]; then
 			argc diff -e "${argc_environment:?}" "$workload"
 		else

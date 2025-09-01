@@ -199,7 +199,7 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    autheliaServiceIngress: utils.service_ingress(config, { name: 'authelia', namespace: 'admin' }, 'authelia', 9091),
+    autheliaServiceIngress: utils.simple_service(config, { app: 'authelia', namespace: 'admin', port: 9091 }),
 
     autheliaMiddleware: {
       apiVersion: 'traefik.io/v1alpha1',

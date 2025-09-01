@@ -94,6 +94,6 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    serviceIngress: utils.service_ingress(config, { name: 'chess2online' }, 'chess2online', 4000, host='api.chess2online.com'),
+    serviceIngress: utils.simple_service(config, { app: 'chess2online', port: 4000, host: 'api.chess2online.com' }),
   },
 }
