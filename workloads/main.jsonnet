@@ -1,5 +1,22 @@
 local config = import 'config.libsonnet';
 
+// Config for kapp. This isn't actually applied to the cluster.
+// https://carvel.dev/kapp/docs/v0.64.x/config/
+local kappConfig = {
+  apiVersion: 'kapp.k14s.io/v1alpha1',
+  kind: 'Config',
+  local pvcIgnoreAnnotations = ['volume.kubernetes.io/selected-node', 'volume.kubernetes.io/storage-provisioner'],
+  diffAgainstExistingFieldExclusionRules: [
+    {
+      path: ['metadata', 'annotations', annotation],
+      resourceMatchers: [
+        { apiVersionKindMatcher: { apiVersion: 'v1', kind: 'PersistentVolumeClaim' } },
+      ],
+    }
+    for annotation in pvcIgnoreAnnotations
+  ],
+};
+
 local decls = {
   backup: import 'backup/main.libsonnet',
   core: import 'core/main.libsonnet',
@@ -35,7 +52,7 @@ local manifests(workload) =
     };
     local moduleConfig = globalConfig + config.workloads[workload];
     local manifestTree = module.manifests(moduleConfig);
-    extractManifests(manifestTree);
+    extractManifests(manifestTree) + [kappConfig];
 
 {
   decls: decls,
