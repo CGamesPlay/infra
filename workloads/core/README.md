@@ -20,6 +20,35 @@ kubectl exec -it -n admin "$POD" -- authelia crypto hash generate
 kubectl cp -n admin users.yml "$POD:/var/lib/authelia/users.yml"
 ```
 
+### Access control
+
+By default, any workload protected by Authelia will allow any user. To further restrict some workloads, use Authelia's [access control configuration](https://www.authelia.com/configuration/security/access-control/). The following example allows only users in the admin group to access the Traefik dashboard.
+
+```jsonnet
+{
+  workloads: {
+    core: {
+      authelia_config: {
+        access_control: {
+          default_policy: 'one_factor',
+          rules: [
+            {
+              domain: 'traefik.' + config.domain,
+              policy: 'one_factor',
+              subject: 'group:admins',
+            },
+            {
+              domain: 'traefik.' + config.domain,
+              policy: 'deny',
+            },
+          ],
+        },
+      }
+    }
+  }
+}
+```
+
 ### OpenID Provider
 
 You can configure OpenID clients by updating the environment configuration. The configuration values will vary by client capabilities, and are documented [here](https://www.authelia.com/configuration/identity-providers/openid-connect/clients/).
