@@ -2,6 +2,7 @@
   local config = self,
   domain: 'cluster.cgamesplay.com',
   wildcardCertificate: true,
+  tcp_ports: { ssh: 2222 },
 
   workloads: {
     backup: {},

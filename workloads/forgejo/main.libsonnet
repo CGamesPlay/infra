@@ -74,12 +74,16 @@ local app_ini = (
                     { name: 'FORGEJO__repository__ENABLE_PUSH_CREATE_USER', value: 'true' },
                     { name: 'FORGEJO__security__INSTALL_LOCK', value: 'true' },
                     { name: 'FORGEJO__security__SECRET_KEY__FILE', value: '/etc/gitea/secret_key' },
+                    { name: 'FORGEJO__server__DISABLE_SSH', value: std.toString(!std.objectHas(config.tcp_ports, 'ssh')) },
                     { name: 'FORGEJO__server__DOMAIN', value: 'code.' + config.domain },
                     { name: 'FORGEJO__server__LANDING_PAGE', value: '/user/oauth2/authelia' },
                     { name: 'FORGEJO__server__LFS_START_SERVER', value: 'true' },
                     { name: 'FORGEJO__server__ROOT_URL', value: 'https://code.' + config.domain + '/' },
                     { name: 'FORGEJO__server__SSH_DOMAIN', value: '%(DOMAIN)s' },
+                    { name: 'FORGEJO__service__ALLOWED_USER_VISIBILITY_MODES', value: 'limited,private' },
                     { name: 'FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION', value: 'true' },
+                    { name: 'FORGEJO__service__DEFAULT_ORG_VISIBILITY', value: 'limited' },
+                    { name: 'FORGEJO__service__DEFAULT_USER_VISIBILITY', value: 'limited' },
                     { name: 'FORGEJO__service__ENABLE_INTERNAL_SIGNIN', value: 'false' },
                     { name: 'FORGEJO__service__ENABLE_NOTIFY_MAIL', value: 'true' },
                     { name: 'FORGEJO__service__REQUIRE_SIGNIN_VIEW', value: 'true' },
@@ -87,8 +91,6 @@ local app_ini = (
                     { name: 'FORGEJO__session__PROVIDER', value: 'db' },
                   ] + (if std.objectHas(config.tcp_ports, 'ssh') then [
                          { name: 'FORGEJO__server__SSH_PORT', value: std.toString(config.tcp_ports.ssh) },
-                       ] else [
-                         { name: 'FORGEJO__server__DISABLE_SSH', value: 'true' },
                        ]) + if config.mailer.enabled then [
                     { name: 'FORGEJO__mailer__FROM', value: config.mailer.from },
                     { name: 'FORGEJO__mailer__PROTOCOL', value: config.mailer.smtp_protocol },
