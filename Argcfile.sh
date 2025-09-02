@@ -57,6 +57,9 @@ spec:
             jwks:
               - key: |
 $(openssl genrsa 2048 | sed -e "s/^/                  /")
+        # notifier:
+        #   smtp:
+        #     password: smtp-password
 EOF
 	cp ../../workloads/config.template.libsonnet config.libsonnet
 

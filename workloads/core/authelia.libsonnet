@@ -22,7 +22,15 @@ function(config) {
     'local': { path: '/var/lib/authelia/db.sqlite3' },
   },
   notifier: {
-    filesystem: { filename: '/var/lib/authelia/notification.txt' },
+    [if !config.mailer.enabled then 'filesystem']: {
+      filename: '/var/lib/authelia/notification.txt',
+    },
+    [if config.mailer.enabled then 'smtp']: {
+      address: config.mailer.address,
+      username: config.mailer.username,
+      sender: config.mailer.sender,
+      identifier: config.mailer.identifier,
+    },
   },
   identity_providers: {
     oidc: {

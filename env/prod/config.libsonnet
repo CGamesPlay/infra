@@ -12,6 +12,12 @@
     },
     core: {
       secrets: importstr 'secrets.yml',
+      mailer+: {
+        enabled: true,
+        sender: 'Authelia <authelia@mail.cgamesplay.com>',
+        address: 'submission://smtp.mailgun.org:587',
+        username: 'forgejo@mail.cgamesplay.com',
+      },
       authelia_config: {
         access_control: {
           default_policy: 'one_factor',

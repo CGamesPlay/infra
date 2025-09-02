@@ -16,6 +16,15 @@ local utils = import 'utils.libsonnet';
       // Can be used to allocate additional TCP listeners, key is label, value
       // is port number.
       tcp_ports: {},
+      // Use mailer+: { enabled: true, ... } to enable, and set the
+      // smtp_passwd secret.
+      mailer: {
+        enabled: false,
+        sender: 'Authelia <authelia@%s>' % _config.domain,
+        address: error 'address is required',
+        username: error 'username is required',
+        identifier: _config.domain,
+      },
     } + _config,
 
     sopsSecrets: {
