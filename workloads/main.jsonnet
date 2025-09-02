@@ -30,6 +30,7 @@ local manifests(workload) =
     local globalConfig = {
       domain: config.domain,
       wildcardCertificate: std.get(config, 'wildcardCertificate', false),
+      tcp_ports: std.get(config, 'tcp_ports', {}),
     };
     local moduleConfig = globalConfig + config.workloads[workload];
     local manifestTree = module.manifests(moduleConfig);

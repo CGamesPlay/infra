@@ -43,21 +43,20 @@ spec:
   secretTemplates:
   - name: authelia
     stringData:
-      AUTHELIA_SESSION_SECRET: $(head -c 32 /dev/urandom | base64)
-      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: $(head -c 32 /dev/urandom | base64)
-      AUTHELIA_STORAGE_ENCRYPTION_KEY: $(head -c 32 /dev/urandom | base64)
-...
-EOF
-	cat >authelia-users.yml <<'EOF'
-users:
-  authelia:
-    disabled: false
-    displayname: 'Authelia User'
-    # Password is authelia
-    password: '$6$rounds=50000$BpLnfgDsc2WD8F2q$Zis.ixdg9s/UOJYrs56b5QEZFiZECu0qZVNsIYxBaNJ7ucIL.nlxVCT5tqh8KHG8X4tlwCFm5r6NTOZZ5qRFN/'
-    email: 'ry@cgamesplay.com'
-    groups:
-      - 'admin'
+      configuration.secret.yml: |
+        session:
+          secret: $(openssl rand -base64 32)
+        identity_validation:
+          reset_password:
+            jwt_secret: $(openssl rand -base64 32)
+        storage:
+          encryption_key: $(openssl rand -base64 32)
+        identity_providers:
+          oidc:
+            hmac_secret: $(openssl rand -base64 32)
+            jwks:
+              - key: |
+$(openssl genrsa 2048 | sed -e "s/^/                  /")
 EOF
 	cp ../../workloads/config.template.libsonnet config.libsonnet
 

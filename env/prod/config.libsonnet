@@ -11,7 +11,6 @@
     },
     core: {
       secrets: importstr 'secrets.yml',
-      authelia_users_yaml: importstr 'authelia-users.yml',
     },
     chess2online: {},
     dashboard: {},

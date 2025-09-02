@@ -1,3 +1,4 @@
+local autheliaConfig = import './authelia.libsonnet';
 local utils = import 'utils.libsonnet';
 
 {
@@ -9,6 +10,12 @@ local utils = import 'utils.libsonnet';
     local module = self,
     local config = {
       verbose: false,
+      authelia_tag: '4.39',
+      // Additional mixin for the Authelia configuration.yml
+      authelia_config: {},
+      // Can be used to allocate additional TCP listeners, key is label, value
+      // is port number.
+      tcp_ports: {},
     } + _config,
 
     sopsSecrets: {
@@ -39,6 +46,16 @@ local utils = import 'utils.libsonnet';
               asDefault: true,
             },
             metrics: null,
+          } + {
+            [name]: {
+              port: port,
+              expose: {
+                default: true,
+              },
+              exposedPort: port,
+            }
+            for name in std.objectFields(config.tcp_ports)
+            for port in [config.tcp_ports[name]]
           },
           service: {
             spec: {
@@ -96,34 +113,7 @@ local utils = import 'utils.libsonnet';
         name: 'authelia-',
       },
       data: {
-        'configuration.yml': std.manifestYamlDoc({
-          theme: 'auto',
-          server: { address: 'tcp://:9091' },
-          log: { level: if config.verbose then 'debug' else 'info' },
-          authentication_backend: {
-            file: { path: '/config/users.yml' },
-          },
-          access_control: {
-            default_policy: 'one_factor',
-          },
-          session: {
-            cookies: [
-              {
-                domain: config.domain,
-                authelia_url: 'https://authelia.' + config.domain,
-                inactivity: '1 day',
-                expiration: '1 day',
-              },
-            ],
-          },
-          storage: {
-            'local': { path: '/var/lib/db.sqlite3' },
-          },
-          notifier: {
-            filesystem: { filename: '/var/lib/notification.txt' },
-          },
-        }),
-        'users.yml': config.authelia_users_yaml,
+        'configuration.yml': std.manifestYamlDoc(autheliaConfig(config) + config.authelia_config),
       },
     }),
 
@@ -169,13 +159,25 @@ local utils = import 'utils.libsonnet';
             containers: [
               {
                 name: 'authelia',
-                image: 'docker.io/authelia/authelia:latest',
+                image: 'docker.io/authelia/authelia:' + config.authelia_tag,
+                env: [
+                  { name: 'X_AUTHELIA_CONFIG', value: '/etc/authelia' },
+                ],
                 envFrom: [
                   { secretRef: { name: 'authelia' } },
                 ],
                 volumeMounts: [
-                  { name: 'config', mountPath: '/config' },
-                  { name: 'data', mountPath: '/var/lib' },
+                  {
+                    name: 'secrets',
+                    mountPath: '/etc/authelia/configuration.secret.yml',
+                    subPath: 'configuration.secret.yml',
+                  },
+                  {
+                    name: 'config',
+                    mountPath: '/etc/authelia/configuration.yml',
+                    subPath: 'configuration.yml',
+                  },
+                  { name: 'data', mountPath: '/var/lib/authelia' },
                 ],
                 resources: {
                   limits: {
@@ -190,6 +192,10 @@ local utils = import 'utils.libsonnet';
                 configMap: { name: module.autheliaConfig.metadata.name },
               },
               {
+                name: 'secrets',
+                secret: { secretName: 'authelia' },
+              },
+              {
                 name: 'data',
                 persistentVolumeClaim: { claimName: module.autheliaVolume.metadata.name },
               },
@@ -199,7 +205,7 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    autheliaServiceIngress: utils.simple_service(config, { app: 'authelia', namespace: 'admin', port: 9091 }),
+    autheliaServiceIngress: utils.simple_service(config, { app: 'authelia', namespace: 'admin', port: 9091, host: 'auth.' + config.domain }),
 
     autheliaMiddleware: {
       apiVersion: 'traefik.io/v1alpha1',
