@@ -151,7 +151,7 @@ upgrade() {
 }
 
 # @cmd Destroy the cluster
-# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @option -e --environment![`choose_env`] Environment to work on
 destroy() {
 	[ ! -d "env/${argc_environment:?}" ] && exit 0
 	cd "env/${argc_environment:?}"
