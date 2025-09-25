@@ -57,6 +57,7 @@
     chess2online: {},
     dashboard: {},
     forgejo: {
+      image_tag: '12.0.4',
       mailer+: {
         enabled: true,
         from: '"Forgejo" <forgejo@mail.cgamesplay.com>',
