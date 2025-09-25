@@ -4,6 +4,8 @@
 
 ## Installation
 
+Add Seafile to the environment configuration. Add secrets.template.yml to your environment's screts.yml in the default namespace.
+
 After starting the container for the first time, you should be able to access the login page, but won't be able to log in. You need to create an admin user account, and make some changes to the configuration.
 
 ```bash
