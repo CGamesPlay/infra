@@ -161,6 +161,10 @@ kubectl get job -A
 
 Unclear!
 
+### Common Issues
+
+- If you change the server's primary IP addresses in the cloud provider console, it may be necessary to run `cloud-init clean -c network` and reboot in order for the server to detect the changes. Failing to do this may result in a partially updated network (e.g. IPv4 works but IPv6 does not).
+
 ## Security Model
 
 This is a toy project for personal use. As a result, the security model has been simplified from the normal one that you would encounter in a production system. At its core, the key difference is that a single-node system will be fully compromised if root access is gained on that node. The key implication of this is: **if a job escapes its sandbox, everything is compromised.** Specifically:
