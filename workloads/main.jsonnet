@@ -25,6 +25,7 @@ local decls = {
   dashboard: import 'dashboard/main.libsonnet',
   forgejo: import 'forgejo/main.libsonnet',
   'open-webui': import 'open-webui/main.libsonnet',
+  romm: import 'romm/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
 };

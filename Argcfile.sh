@@ -105,11 +105,12 @@ diff() {
 # @arg    workload![?`choose_workload`]      Name of workload to consider
 # @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @flag   --yes                              Automatically accept kapp apps
+# @flag   --no-wait                          Don't wait for services to be ready
 # @meta require-tools jsonnet,kapp
 apply() {
 	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
 	manifest=$(_render_manifest)
-	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} -f <(echo "$manifest")
+	kapp deploy -a "${argc_workload:?}" -c ${argc_yes:+--yes} ${argc_no_wait+--wait=false} -f <(echo "$manifest")
 }
 
 # @cmd Sync all enabled workloads

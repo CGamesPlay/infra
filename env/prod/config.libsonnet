@@ -49,7 +49,25 @@
                 ],
                 scopes: ['openid', 'email', 'profile', 'groups'],
               },
+              {
+                client_id: 'romm',
+                client_name: 'RomM',
+                client_secret: '$argon2id$v=19$m=65536,t=3,p=4$UyhbhLOY3A1ewbVo+W1v+w$8gstH/JMx9QKvK0H0Xub7sufjZDouXl8CJu6eGsm58s',
+                consent_mode: 'implicit',
+                authorization_policy: 'one_factor',
+                redirect_uris: [
+                  'https://romm.' + config.domain + '/api/oauth/openid',
+                ],
+                scopes: ['openid', 'email', 'profile'],
+                claims_policy: 'romm',
+              },
             ],
+            claims_policies: {
+              // https://github.com/rommapp/romm/issues/1927
+              romm: {
+                id_token: ['email', 'email_verified', 'alt_emails', 'preferred_username', 'name'],
+              },
+            },
           },
         },
       },
@@ -65,6 +83,7 @@
         user: 'forgejo@mail.cgamesplay.com',
       },
     },
+    romm: {},
     seafile: {},
   },
 }
