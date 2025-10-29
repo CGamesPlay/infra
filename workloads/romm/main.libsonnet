@@ -13,6 +13,7 @@ local app_ini = (
   manifests(_config):
     local config = {
       image_tag: '4',
+      sso: false,
     } + _config;
     {
       local module = self,
@@ -92,17 +93,21 @@ local app_ini = (
                   envFrom: [
                     { secretRef: { name: 'romm' } },
                   ],
-                  env: [
-                    { name: 'DB_HOST', value: '127.0.0.1' },
-                    { name: 'DB_NAME', value: 'romm' },
-                    { name: 'DB_USER', value: 'romm' },
-                    { name: 'DB_PASSWD', value: 'romm' },
-                    { name: 'DISABLE_USERPASS_LOGIN', value: 'true' },
-                    { name: 'OIDC_ENABLED', value: 'true' },
-                    { name: 'OIDC_PROVIDER', value: 'authelia' },
-                    { name: 'OIDC_REDIRECT_URI', value: 'https://romm.' + config.domain + '/api/oauth/openid' },
-                    { name: 'OIDC_SERVER_APPLICATION_URL', value: 'https://auth.' + config.domain + '/' },
-                  ],
+                  env: utils.join([
+                    [
+                      { name: 'DB_HOST', value: '127.0.0.1' },
+                      { name: 'DB_NAME', value: 'romm' },
+                      { name: 'DB_USER', value: 'romm' },
+                      { name: 'DB_PASSWD', value: 'romm' },
+                    ],
+                    if config.sso then [
+                      { name: 'DISABLE_USERPASS_LOGIN', value: 'true' },
+                      { name: 'OIDC_ENABLED', value: 'true' },
+                      { name: 'OIDC_PROVIDER', value: 'authelia' },
+                      { name: 'OIDC_REDIRECT_URI', value: 'https://romm.' + config.domain + '/api/oauth/openid' },
+                      { name: 'OIDC_SERVER_APPLICATION_URL', value: 'https://auth.' + config.domain + '/' },
+                    ],
+                  ]),
                   resources: {
                     requests: {
                       memory: '200Mi',

@@ -6,6 +6,8 @@ A beautiful, powerful, self-hosted rom manager and player. [Website](https://rom
 
 Add Romm to the environment configuration. Add secrets.template.yml to your environment's secrets.yml in the default namespace.
 
+### Enabling SSO
+
 ```bash
 # Generate a client secret and hash it.
 kubectl exec -it -n admin deployment/authelia -- authelia crypto hash generate --random
@@ -47,9 +49,20 @@ kubectl exec -it -n admin deployment/authelia -- authelia crypto hash generate -
         },
       },
     },
-    romm: {},
+    romm: {
+      sso: true,
+    },
   }
 }
 ```
 
 When you open the app for the first time, it will put you into the new-user experience. Create a new user which matches the email address of your authelia user (username and password don't matter). After compelting the new-user experience, you will be directed to the SSO login.
+
+## Maintenance
+
+You can get a database shell for doing manual maintenance using:
+
+```bash
+kubectl exec -it deployments/romm -c mariadb -- mariadb romm
+SELECT platforms.name, COUNT(*) FROM platforms INNER JOIN roms ON roms.platform_id = platforms.id GROUP BY platforms.id;
+```

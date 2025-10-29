@@ -83,7 +83,9 @@
         user: 'forgejo@mail.cgamesplay.com',
       },
     },
-    romm: {},
+    romm: {
+      sso: true,
+    },
     seafile: {},
   },
 }

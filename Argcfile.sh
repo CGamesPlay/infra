@@ -13,6 +13,7 @@ set -eu
 # @option --age $AGE_PUBLIC_KEY    Admin's age public key to use
 # @option --k3s-channel=stable     K3s channel to use
 # @option --driver![lima|hetzner]  Type of cluster to create
+# @flag   --age-generate-key       Make a new age key to use
 # @flag   --driver-help            Show help for the driver
 # @meta require-tools sops,terraform,kubectl
 init() {
@@ -31,6 +32,10 @@ init() {
 
 	CLUSTER_AGE_PUBLIC_KEY=$(cat sops-age-recipient.txt)
 	age_keys="${argc_age:-}${argc_age:+,}$CLUSTER_AGE_PUBLIC_KEY"
+	if [[ ${argc_age_generate_key+1} ]]; then
+		age-keygen -o age.key
+		age_keys="${age_keys},$(age-keygen -y age.key)"
+	fi
 	sops --encrypt --age "$age_keys" --encrypted-suffix Templates --input-type yaml --output-type yaml /dev/stdin > secrets.yml <<EOF
 ---
 apiVersion: isindir.github.com/v1alpha3
