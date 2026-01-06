@@ -10,7 +10,7 @@ local utils = import 'utils.libsonnet';
     local module = self,
     local config = {
       verbose: false,
-      authelia_tag: '4.39',
+      authelia_tag: '4.39.15',
       // Additional mixin for the Authelia configuration.yml
       authelia_config: {},
       // Can be used to allocate additional TCP listeners, key is label, value
