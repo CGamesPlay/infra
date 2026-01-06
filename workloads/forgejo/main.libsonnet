@@ -12,7 +12,7 @@ local app_ini = (
 
   manifests(_config):
     local config = {
-      image_tag: '12',
+      image_tag: '13.0',
       // Use mailer+: { enabled: true, ... } to enable, and set the
       // mailer_passwd secret.
       mailer: {
