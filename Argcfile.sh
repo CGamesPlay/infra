@@ -179,6 +179,182 @@ prepare() {
 	fi
 }
 
+# @cmd List all pod container images as JSON
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @option -o --output                     Output file path (defaults to stdout)
+# @meta require-tools kubectl,jq
+list-images() {
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
+
+	result=$(kubectl get pods -A -o json | jq '
+[.items[] |
+  . as $pod |
+  (
+    ((.status.containerStatuses // []) + (.status.initContainerStatuses // []))
+    | map({(.name): .imageID})
+    | add // {}
+  ) as $imageIdMap |
+  ((.spec.containers // []) + (.spec.initContainers // [])) |
+  .[] |
+  {
+    namespace: $pod.metadata.namespace,
+    pod: $pod.metadata.name,
+    container: .name,
+    image: (.image | split("@")[0] | split(":")[0]),
+    tag: (.image | split("@")[0] | if contains(":") then split(":")[1] else "latest" end),
+    sha: (($imageIdMap[.name] // "") |
+          if . == "" then null
+          elif contains("sha256:") then (split("sha256:")[1] | split("@")[0])
+          else . end)
+  }
+]')
+
+	if [ "${argc_output:-}" ]; then
+		echo "$result" > "${argc_output}"
+	else
+		echo "$result"
+	fi
+}
+
+# Check if a tag looks like a semantic version
+_is_semver() {
+	local tag="$1"
+	# Match patterns like: 1.2.3, v1.2.3, 1.2.3-alpine, v1.2.3-rc1, etc.
+	[[ "$tag" =~ ^v?[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9._-]+)?$ ]]
+}
+
+# Get the highest semver tag from a list of tags
+# Input: newline-separated list of tags on stdin
+# Output: the highest semver tag
+_get_latest_semver() {
+	local current_tag="$1"
+	local v_prefix=""
+	local current_suffix=""
+
+	# Extract v prefix and suffix from current tag
+	# e.g., "v1.2.3-alpine" -> v_prefix="v", current_suffix="-alpine"
+	# e.g., "1.2.3" -> v_prefix="", current_suffix=""
+	if [[ "$current_tag" =~ ^(v)?([0-9]+\.[0-9]+(\.[0-9]+)?)(-.+)?$ ]]; then
+		v_prefix="${BASH_REMATCH[1]:-}"
+		current_suffix="${BASH_REMATCH[4]:-}"
+	fi
+
+	# Filter to semver tags with matching v-prefix and suffix, sort, get highest
+	grep -E "^${v_prefix}[0-9]+\.[0-9]+(\.[0-9]+)?${current_suffix}$" 2>/dev/null \
+		| sort -V \
+		| tail -n1
+}
+
+# Compare running digest with registry digest
+# Returns 0 if digests match, 1 if different
+_compare_digests() {
+	local image="$1"
+	local tag="$2"
+	local running_sha="$3"
+
+	# Get current digest from registry (use linux/amd64 for consistency with k8s)
+	local registry_sha
+	registry_sha=$(skopeo inspect --no-tags --override-os linux --override-arch amd64 \
+		"docker://${image}:${tag}" 2>/dev/null \
+		| jq -r '.Digest // empty' \
+		| sed 's/sha256://')
+
+	if [ -z "$registry_sha" ]; then
+		return 2  # Could not fetch
+	fi
+
+	# Compare first 64 chars (full sha256)
+	if [ "${running_sha:0:64}" = "${registry_sha:0:64}" ]; then
+		return 0  # Match
+	else
+		return 1  # Different
+	fi
+}
+
+# @cmd Check for outdated container images
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @option -f --file                        JSON file from list-images (optional, runs list-images if not provided)
+# @meta require-tools kubectl,jq,skopeo
+outdated-images() {
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
+
+	# Get image data (from file or live)
+	local images
+	if [ "${argc_file:-}" ]; then
+		images=$(cat "$argc_file")
+	else
+		images=$(list-images)
+	fi
+
+	# Build version lookup as JSON object (keyed by "image|tag")
+	local version_lookup="{}"
+
+	# Get unique image:tag:sha combinations
+	local unique_entries
+	unique_entries=$(echo "$images" | jq -c '[.[] | {image, tag, sha}] | unique | .[]')
+
+	while IFS= read -r entry; do
+		[ -z "$entry" ] && continue
+
+		local image tag sha latest status
+		image=$(echo "$entry" | jq -r '.image')
+		tag=$(echo "$entry" | jq -r '.tag')
+		sha=$(echo "$entry" | jq -r '.sha // empty')
+
+		if _is_semver "$tag"; then
+			# For semver tags, find latest semver
+			local all_tags
+			all_tags=$(skopeo list-tags "docker://${image}" 2>/dev/null | jq -r '.Tags[]?' 2>/dev/null)
+
+			if [ -z "$all_tags" ]; then
+				latest=""
+				status="error"
+			else
+				latest=$(echo "$all_tags" | _get_latest_semver "$tag")
+
+				if [ -z "$latest" ]; then
+					latest=""
+					status="error"
+				elif [ "$tag" = "$latest" ]; then
+					status="current"
+				else
+					status="outdated"
+				fi
+			fi
+		else
+			# For non-semver tags, compare digests
+			latest=""
+
+			if [ -z "$sha" ]; then
+				status="error"
+			elif _compare_digests "$image" "$tag" "$sha"; then
+				status="current"
+			else
+				case $? in
+					1) status="outdated" ;;
+					2) status="error" ;;
+				esac
+			fi
+		fi
+
+		# Add to lookup object
+		local key="${image}|${tag}"
+		version_lookup=$(echo "$version_lookup" | jq -c \
+			--arg k "$key" \
+			--arg l "$latest" \
+			--arg s "$status" \
+			'.[$k] = {latest: (if $l == "" then null else $l end), status: $s}')
+	done <<< "$unique_entries"
+
+	# Augment original JSON with version info
+	echo "$images" | jq --argjson lookup "$version_lookup" '
+		[.[] | . as $entry |
+			($entry.image + "|" + $entry.tag) as $key |
+			$lookup[$key] as $info |
+			$entry + ($info // {latest: null, status: "error"})
+		]'
+}
+
 # @cmd Activate the named environment
 #
 # Use this to set defaults for various environment variables.
