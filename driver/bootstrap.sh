@@ -12,12 +12,8 @@ curl -sfL https://get.k3s.io | \
 
 mkdir -p /etc/rancher/k3s
 
-cat >/etc/rancher/k3s/config.yaml <<-EOF
-disable: metrics-server
-EOF
-
 if [ -n "$(ip -6 addr show scope global)" ]; then
-  cat >>/etc/rancher/k3s/config.yaml <<-EOF
+  cat >/etc/rancher/k3s/config.yaml <<-EOF
 cluster-cidr: 10.42.0.0/16,fd00:cafe:42::/56
 service-cidr: 10.43.0.0/16,fd00:cafe:43::/112
 flannel-ipv6-masq: true
