@@ -50,6 +50,18 @@
                 scopes: ['openid', 'email', 'profile', 'groups'],
               },
               {
+                client_id: 'headscale',
+                client_name: 'Headscale',
+                client_secret: '$argon2id$v=19$m=65536,t=3,p=4$ZUQXpaIuUKJjE/KNJug2Kg$rA+sV4PR7KNRuPoF9M/4GH6zoIwahVMdv1TJeczcjmY',
+                consent_mode: 'implicit',
+                authorization_policy: 'one_factor',
+                pkce_challenge_method: 'S256',
+                redirect_uris: [
+                  'https://headscale.' + config.domain + '/oidc/callback',
+                ],
+                scopes: ['openid', 'email', 'profile', 'groups'],
+              },
+              {
                 client_id: 'romm',
                 client_name: 'RomM',
                 client_secret: '$argon2id$v=19$m=65536,t=3,p=4$UyhbhLOY3A1ewbVo+W1v+w$8gstH/JMx9QKvK0H0Xub7sufjZDouXl8CJu6eGsm58s',
@@ -74,6 +86,7 @@
     },
     chess2online: {},
     dashboard: {},
+    headscale: {},
     forgejo: {
       image_tag: '13.0.3',
       mailer+: {

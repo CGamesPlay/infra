@@ -24,6 +24,7 @@ local decls = {
   chess2online: import 'chess2online/main.libsonnet',
   dashboard: import 'dashboard/main.libsonnet',
   forgejo: import 'forgejo/main.libsonnet',
+  headscale: import 'headscale/main.libsonnet',
   'open-webui': import 'open-webui/main.libsonnet',
   romm: import 'romm/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
