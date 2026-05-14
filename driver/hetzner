@@ -94,18 +94,26 @@ unseal() {
 
 # @cmd Replace the cluster's server with a new one
 #
-# In case something goes wrong, delete the old server and primary IPs,
-# then use --ignore-existing.
+# In case something goes wrong, delete the old server, then use
+# --ignore-existing --primary-ipv4 --primary-ipv6.
 # @flag   --ignore-existing            Do not attempt to reuse an old server
 # @option --type!                      Server type to use
 # @option --image=ubuntu-24.04         Image to use for server
 # @option --ssh-key=`default_ssh_key`  SSH key to use
+# @option --primary-ipv4 <ID>          ID of primary IPv4 if using --ignore-existing
+# @option --primary-ipv6 <ID>          ID of primary IPv6 if using --ignore-existing
 upgrade() {
 	env_name=${1:?Environment name is required}
 	volume=$(hcloud volume describe "data-$env_name" -o json)
 	server_create_args=()
 	if [ ${argc_ignore_existing+1} ]; then
 		server_create_args+=(--name "$env_name")
+		if [[ ${argc_primary_ipv4+1} ]]; then
+			server_create_args+=(--primary-ipv4 "$argc_primary_ipv4")
+		fi
+		if [[ ${argc_primary_ipv6+1} ]]; then
+			server_create_args+=(--primary-ipv6 "$argc_primary_ipv6")
+		fi
 	else
 		old_server_id=$(echo "$volume" | jq -r '.server')
 		old_server=$(hcloud server describe "$old_server_id" -o json)
@@ -144,12 +152,12 @@ upgrade() {
 	if [ ${argc_ignore_existing+1} ]; then
 		# Mark the primary IPs as belonging to this environment
 		ipv4_id=$(echo "$server" | jq -r '.server.public_net.ipv4.id')
-		if [ "$ipv4_id" ]; then
+		if [ ! ${argc_primary_ipv4+1} ] && [ "$ipv4_id" ]; then
 			hcloud primary-ip add-label "$ipv4_id" env="$env_name"
 			hcloud primary-ip update "$ipv4_id" --auto-delete=false
 		fi
 		ipv6_id=$(echo "$server" | jq -r '.server.public_net.ipv6.id')
-		if [ "$ipv6_id" ]; then
+		if [ ! ${argc_primary_ipv6+1} ] && [ "$ipv6_id" ]; then
 			hcloud primary-ip add-label "$ipv6_id" env="$env_name"
 			hcloud primary-ip update "$ipv6_id" --auto-delete=false
 		fi
