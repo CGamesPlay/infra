@@ -62,6 +62,17 @@
                 scopes: ['openid', 'email', 'profile', 'groups'],
               },
               {
+                client_id: 'coder',
+                client_name: 'Coder',
+                client_secret: '$argon2id$v=19$m=65536,t=3,p=4$O6mf9Pbvg43HWOhzJ41/MQ$Y7JfyK2opQ8R30uuasM1RUKisHHHm2Zj6/Qb8ywAagY',
+                consent_mode: 'implicit',
+                authorization_policy: 'one_factor',
+                redirect_uris: ['https://c.200-ok.link/api/v2/users/oidc/callback'],
+                scopes: ['openid', 'profile', 'email', 'groups', 'offline_access'],
+                grant_types: ['authorization_code', 'refresh_token'],
+                token_endpoint_auth_method: 'client_secret_post',
+              },
+              {
                 client_id: 'romm',
                 client_name: 'RomM',
                 client_secret: '$argon2id$v=19$m=65536,t=3,p=4$UyhbhLOY3A1ewbVo+W1v+w$8gstH/JMx9QKvK0H0Xub7sufjZDouXl8CJu6eGsm58s',

@@ -125,7 +125,7 @@ You may want to set up your SSH config for access to the server. This is fine, b
 ```bash
 # Example configuration for SSH
 Host my.cluster.dns
-  Hostname 188.245.147.159
+  Hostname 1.1.1.1
   User root
 ```
 
