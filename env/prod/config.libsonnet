@@ -36,19 +36,18 @@
         },
         identity_providers: {
           oidc: {
-            clients: [
-              {
-                client_id: 'forgejo',
-                client_name: 'Forgejo',
-                client_secret: '$argon2id$v=19$m=65536,t=3,p=4$8SIHs236AJDJSCZ7Our3ag$IdeLVKaIvf4ddpAut2rYN9E+jpCCUzl3+4I6DIbXnv0',
-                consent_mode: 'implicit',
-                authorization_policy: 'one_factor',
-                pkce_challenge_method: 'S256',
-                redirect_uris: [
-                  'https://code.' + config.domain + '/user/oauth2/authelia/callback',
-                ],
-                scopes: ['openid', 'email', 'profile', 'groups'],
+            lifespans: {
+              custom: {
+                offline_access: {
+                  // Should ideally use shorter-lived access tokens to enable
+                  // more rapid revocation, but...
+                  // https://github.com/coder/coder/issues/25275
+                  access_token: '8h',
+                  refresh_token: '7d',
+                },
               },
+            },
+            clients: [
               {
                 client_id: 'headscale',
                 client_name: 'Headscale',
@@ -62,6 +61,18 @@
                 scopes: ['openid', 'email', 'profile', 'groups'],
               },
               {
+                client_id: 'forgejo',
+                client_name: 'Forgejo',
+                client_secret: '$argon2id$v=19$m=65536,t=3,p=4$8SIHs236AJDJSCZ7Our3ag$IdeLVKaIvf4ddpAut2rYN9E+jpCCUzl3+4I6DIbXnv0',
+                consent_mode: 'implicit',
+                authorization_policy: 'one_factor',
+                pkce_challenge_method: 'S256',
+                redirect_uris: [
+                  'https://f.200-ok.link/user/oauth2/authelia/callback',
+                ],
+                scopes: ['openid', 'email', 'profile', 'groups'],
+              },
+              {
                 client_id: 'coder',
                 client_name: 'Coder',
                 client_secret: '$argon2id$v=19$m=65536,t=3,p=4$O6mf9Pbvg43HWOhzJ41/MQ$Y7JfyK2opQ8R30uuasM1RUKisHHHm2Zj6/Qb8ywAagY',
@@ -70,6 +81,8 @@
                 redirect_uris: ['https://c.200-ok.link/api/v2/users/oidc/callback'],
                 scopes: ['openid', 'profile', 'email', 'groups', 'offline_access'],
                 grant_types: ['authorization_code', 'refresh_token'],
+                response_types: ['code'],
+                lifespan: 'offline_access',
                 token_endpoint_auth_method: 'client_secret_post',
               },
               {
@@ -79,7 +92,7 @@
                 consent_mode: 'implicit',
                 authorization_policy: 'one_factor',
                 redirect_uris: [
-                  'https://romm.' + config.domain + '/api/oauth/openid',
+                  'http://raspi.ts.200-ok.link:1996/api/oauth/openid',
                 ],
                 scopes: ['openid', 'email', 'profile'],
                 claims_policy: 'romm',
@@ -96,20 +109,7 @@
       },
     },
     chess2online: {},
-    dashboard: {},
     headscale: {},
-    forgejo: {
-      image_tag: '13.0.3',
-      mailer+: {
-        enabled: true,
-        from: '"Forgejo" <forgejo@mail.cgamesplay.com>',
-        smtp_addr: 'smtp.mailgun.org',
-        user: 'forgejo@mail.cgamesplay.com',
-      },
-    },
-    romm: {
-      sso: true,
-    },
     seafile: {},
   },
 }
