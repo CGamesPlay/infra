@@ -20,6 +20,10 @@ local utils = import '../utils.libsonnet';
         data: {
           MYSQL_ALLOW_EMPTY_PASSWORD: 'true',
           MYSQL_LOG_CONSOLE: 'true',
+          SEAFILE_SERVER_LETSENCRYPT: 'false',
+          SEAFILE_SERVER_HOSTNAME: 'seafile.' + config.domain,
+          FORCE_HTTPS_IN_CONF: 'true',
+          DEBUG: 'true',
         },
       }),
 
