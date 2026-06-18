@@ -5,7 +5,7 @@ local utils = import '../utils.libsonnet';
 
   manifests(_config):
     local config = {
-      image_tag: 'v0.28.0',
+      image_tag: 'v0.29',
       // IPv6 prefix within Tailscale's fd7a:115c:a1e0::/48 range
       prefixes_v6: 'fd7a:115c:a1e0:7939::/64',
       // MagicDNS base domain (must differ from server_url domain)
@@ -30,6 +30,9 @@ local utils = import '../utils.libsonnet';
             metrics_listen_addr: '0.0.0.0:9090',
             noise: {
               private_key_path: '/var/lib/headscale/noise_private.key',
+            },
+            policy: {
+              path: '/etc/headscale/policy.json',
             },
             prefixes: {
               v4: '100.64.0.0/10',
@@ -65,6 +68,14 @@ local utils = import '../utils.libsonnet';
               },
               allowed_groups: ['network'],
             },
+          }),
+          'policy.json': std.manifestJson({
+            nodeAttrs: [
+              {
+                target: ['*'],
+                attr: ['magicdns-aaaa', 'dns-subdomain-resolve'],
+              },
+            ],
           }),
         },
       }),
@@ -130,6 +141,11 @@ local utils = import '../utils.libsonnet';
                       subPath: 'config.yaml',
                     },
                     {
+                      name: 'config',
+                      mountPath: '/etc/headscale/policy.json',
+                      subPath: 'policy.json',
+                    },
+                    {
                       name: 'data',
                       mountPath: '/var/lib/headscale',
                     },
@@ -177,7 +193,6 @@ local utils = import '../utils.libsonnet';
                   name: 'config',
                   configMap: {
                     name: module.configMap.metadata.name,
-                    items: [{ key: 'config.yaml', path: 'config.yaml' }],
                   },
                 },
                 {
