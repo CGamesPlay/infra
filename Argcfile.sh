@@ -355,6 +355,23 @@ outdated-images() {
 		]'
 }
 
+# @cmd Edit Authelia users
+#
+# Downloads the users database, allows editing, then uploads it back.
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @meta require-tools kubectl
+edit-users() {
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
+	POD=$(kubectl get pods -n admin -l app=authelia -o jsonpath='{.items[0].metadata.name}')
+	kubectl cp -n admin "$POD:/var/lib/authelia/users.yml" "${TMPDIR:?}/users.yml"
+	if ! "${EDITOR:-vim}" "$TMPDIR/users.yml"; then
+		echo "Editing failed. Cancelling." >&2
+		exit 1
+	fi
+	kubectl cp -n admin "$TMPDIR/users.yml" "$POD:/var/lib/authelia/users.yml"
+	echo "Uploaded successfully. Authelia will reload the configuration."
+}
+
 # @cmd Activate the named environment
 #
 # Use this to set defaults for various environment variables.

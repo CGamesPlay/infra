@@ -8,16 +8,11 @@ Authelia is automatically set up, but can be customized with additional configur
 
 ### User management
 
-To manage users, you need to edit the users yml database manually. Authelia initially creates a database with a user `authelia` / `authelia`. This can safely be removed.
+To manage users, you need to edit the users yml database manually. Authelia initially creates a database with a user `authelia` / `authelia`. This can safely be removed. The `argc edit-users` command facilitates this.
 
 ```bash
-POD=$(kubectl get pods -n admin -l app=authelia -o jsonpath='{.items[0].metadata.name}')
-# Download the users database
-kubectl cp -n admin "$POD:/var/lib/authelia/users.yml" users.yml
 # Generate a password hash
-kubectl exec -it -n admin "$POD" -- authelia crypto hash generate
-# Upload the modified file
-kubectl cp -n admin users.yml "$POD:/var/lib/authelia/users.yml"
+kubectl exec -it -n admin deployments/authelia -- authelia crypto hash generate
 ```
 
 ### Access control
