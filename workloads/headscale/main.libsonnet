@@ -17,11 +17,11 @@ local utils = import '../utils.libsonnet';
     {
       local module = self,
 
-      configMap: utils.immutable_config_map({
+      configMap: utils.config_map({
         apiVersion: 'v1',
         kind: 'ConfigMap',
         metadata: {
-          name: 'headscale-config-',
+          name: 'headscale-config',
         },
         data: {
           'config.yaml': std.manifestYamlDoc({
@@ -116,6 +116,9 @@ local utils = import '../utils.libsonnet';
             metadata: {
               labels: {
                 app: 'headscale',
+              },
+              annotations: {
+                'configmap-hash': module.configMap.config_hash,
               },
             },
             spec: {

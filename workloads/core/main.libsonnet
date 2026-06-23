@@ -114,12 +114,12 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    autheliaConfig: utils.immutable_config_map({
+    autheliaConfig: utils.config_map({
       apiVersion: 'v1',
       kind: 'ConfigMap',
       metadata: {
         namespace: 'admin',
-        name: 'authelia-',
+        name: 'authelia',
       },
       data: {
         'configuration.yml': std.manifestYamlDoc(autheliaConfig(config) + config.authelia_config),
@@ -161,6 +161,9 @@ local utils = import 'utils.libsonnet';
           metadata: {
             labels: {
               app: 'authelia',
+            },
+            annotations: {
+              'configmap-hash': module.autheliaConfig.config_hash,
             },
           },
           spec: {

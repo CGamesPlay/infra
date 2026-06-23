@@ -32,6 +32,9 @@ local index_html = (
             labels: {
               app: 'dashboard',
             },
+            annotations: {
+              'configmap-hash': module.configMap.config_hash,
+            },
           },
           spec: {
             containers: [
@@ -59,11 +62,11 @@ local index_html = (
       },
     },
 
-    configMap: utils.immutable_config_map({
+    configMap: utils.config_map({
       apiVersion: 'v1',
       kind: 'ConfigMap',
       metadata: {
-        name: 'dashboard-files-',
+        name: 'dashboard-files',
       },
       data: {
         'index.html': utils.varSubstitute(index_html, {

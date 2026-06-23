@@ -93,14 +93,15 @@
       ingress: if service_config.ingress then traefik_ingress(module_config, service_config) else {},
     },
 
-  // Helper to hash config data for use as an immutable ConfigMap object.
-  // The existing metadata.name is treated as a prefix and should end in
-  // "-".
-  immutable_config_map(manifest): manifest {
-    metadata+: {
-      name: manifest.metadata.name + std.md5(std.manifestJson(manifest.data)),
-    },
-    immutable: true,
+  // Produce a mutable ConfigMap with a stable name. Its content hash is
+  // exposed as a HIDDEN field (config_hash::): accessible to sibling manifests
+  // as module.<key>.config_hash, but never serialized into the actual ConfigMap
+  // object. Workloads that consume this ConfigMap mirror that value onto their
+  // pod-template annotation 'configmap-hash' so the workload rolls when config
+  // changes (replaces the old immutable-configmap pattern; keeps one stable
+  // object and surfaces changes as a small diff).
+  config_map(manifest): manifest {
+    config_hash:: std.md5(std.manifestJson(manifest.data)),
   },
 
   // This function substitutes all occurrences of `${foo}` with

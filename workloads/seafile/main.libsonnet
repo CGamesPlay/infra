@@ -11,11 +11,11 @@ local utils = import '../utils.libsonnet';
     {
       local module = self,
 
-      configMap: utils.immutable_config_map({
+      configMap: utils.config_map({
         apiVersion: 'v1',
         kind: 'ConfigMap',
         metadata: {
-          name: 'seafile-config-',
+          name: 'seafile-config',
         },
         data: {
           MYSQL_ALLOW_EMPTY_PASSWORD: 'true',
@@ -49,6 +49,9 @@ local utils = import '../utils.libsonnet';
             metadata: {
               labels: {
                 app: 'seafile',
+              },
+              annotations: {
+                'configmap-hash': module.configMap.config_hash,
               },
             },
             spec: {

@@ -21,6 +21,9 @@ local utils = import 'utils.libsonnet';
             template: {
               metadata: {
                 name: 'backup',
+                annotations: {
+                  'configmap-hash': module.configMap.config_hash,
+                },
               },
               spec: {
                 restartPolicy: 'Never',
@@ -71,12 +74,12 @@ local utils = import 'utils.libsonnet';
       },
     },
 
-    configMap: utils.immutable_config_map({
+    configMap: utils.config_map({
       apiVersion: 'v1',
       kind: 'ConfigMap',
       metadata: {
         namespace: 'admin',
-        name: 'backup-script-',
+        name: 'backup-script',
       },
       data: {
         'backup.sh': importstr 'backup.sh',

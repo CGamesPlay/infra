@@ -25,6 +25,22 @@ local testSuite(config) =
         format(arr[1:], acc + [result]);
     error std.length(results) + ' tests failed.\n\n' + std.join('\n', format(results));
 
+local cm = utils.config_map({
+  apiVersion: 'v1',
+  kind: 'ConfigMap',
+  metadata: {
+    name: 'seafile-config',
+    namespace: 'admin',
+  },
+  data: { DEBUG: 'true' },
+});
+local cm2 = utils.config_map({
+  apiVersion: 'v1',
+  kind: 'ConfigMap',
+  metadata: { name: 'seafile-config' },
+  data: { DEBUG: 'false' },
+});
+
 testSuite({
   'no substitutions': {
     actual: utils.varSubstitute('the happy fox', { animal: 'hound' }),
@@ -49,5 +65,36 @@ testSuite({
   recursive: {
     actual: utils.varSubstitute('the happy ${animal}', { animal: '${animal}' }),
     expect: 'the happy ${animal}',
+  },
+  'config_map: stable name (no hash suffix)': {
+    actual: cm.metadata.name,
+    expect: 'seafile-config',
+  },
+  'config_map: immutable absent': {
+    actual: std.toString(std.objectHas(cm, 'immutable')),
+    expect: 'false',
+  },
+  'config_map: namespace preserved': {
+    actual: cm.metadata.namespace,
+    expect: 'admin',
+  },
+  'config_map: kind preserved': {
+    actual: cm.kind,
+    expect: 'ConfigMap',
+  },
+  'config_map: hash not serialized into manifest': {
+    actual: std.toString(
+      std.length(std.findSubstr(std.manifestJson(cm), 'config_hash')) == 0
+      && std.length(std.findSubstr(std.manifestJson(cm), 'configmap-hash')) == 0
+    ),
+    expect: 'true',
+  },
+  'config_map: hidden config_hash is a 32-char md5': {
+    actual: std.toString(std.length(cm.config_hash) == 32),
+    expect: 'true',
+  },
+  'config_map: hash changes when data changes': {
+    actual: std.toString(cm.config_hash != cm2.config_hash),
+    expect: 'true',
   },
 })
