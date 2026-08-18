@@ -8,6 +8,7 @@ set -euo pipefail
 # @option --size!                      Size for data volume
 # @option --type!                      Server type to use
 # @option --image=ubuntu-24.04         Image to use for server
+# @option --swap-size=2G               Size of swap file to create
 # @option --ssh-key=`default_ssh_key`  SSH key to use
 # @meta require-tools kubectl,terraform,age-keygen
 # @meta require-tools hcloud,jq,sops,age-keygen,nc
@@ -74,6 +75,7 @@ init() {
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$volume" \
 		FORMAT_DRIVE=1 \
 		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		SWAP_SIZE="${argc_swap_size:?}" \
 		sh <<-EOF
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)
@@ -99,6 +101,7 @@ unseal() {
 # @flag   --ignore-existing            Do not attempt to reuse an old server
 # @option --type!                      Server type to use
 # @option --image=ubuntu-24.04         Image to use for server
+# @option --swap-size=2G               Size of swap file to create
 # @option --ssh-key=`default_ssh_key`  SSH key to use
 # @option --primary-ipv4 <ID>          ID of primary IPv4 if using --ignore-existing
 # @option --primary-ipv6 <ID>          ID of primary IPv6 if using --ignore-existing
@@ -170,6 +173,7 @@ upgrade() {
 		-l root "$server_ip" \
 		BLOCK_DEVICE="/dev/disk/by-id/scsi-SHC_Volume_$(echo "$volume" | jq -r '.id')" \
 		INSTALL_K3S_CHANNEL="${INSTALL_K3S_CHANNEL:?}" \
+		SWAP_SIZE="${argc_swap_size:?}" \
 		sh <<-EOF
 	cloud-init status -w
 	$(cat ../../driver/bootstrap.sh)

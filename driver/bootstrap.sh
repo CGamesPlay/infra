@@ -4,6 +4,13 @@ set -eux
 apt-get update
 apt-get install age
 
+# The cloud images come without swap, so create some
+fallocate -l "${SWAP_SIZE:?}" /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo "/swapfile none swap sw 0 0" >>/etc/fstab
+
 curl -sfL https://get.k3s.io | \
 	INSTALL_K3S_CHANNEL=${INSTALL_K3S_CHANNEL:?} \
 	INSTALL_K3S_SKIP_START=true \
