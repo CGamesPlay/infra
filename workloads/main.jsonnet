@@ -28,6 +28,7 @@ local decls = {
   romm: import 'romm/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
+  zulip: import 'zulip/main.libsonnet',
 };
 
 local extractManifests(obj) =
