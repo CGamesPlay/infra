@@ -28,6 +28,7 @@ local decls = {
   romm: import 'romm/main.libsonnet',
   seafile: import 'seafile/main.libsonnet',
   whoami: import 'whoami/main.libsonnet',
+  zulip: import 'zulip/main.libsonnet',
 };
 
 local extractManifests(obj) =
@@ -48,6 +49,7 @@ local manifests(workload) =
   else
     local globalConfig = {
       domain: config.domain,
+      timezone: std.get(config, 'timezone', 'Etc/UTC'),
       wildcardCertificate: std.get(config, 'wildcardCertificate', false),
       tcp_ports: std.get(config, 'tcp_ports', {}),
     };

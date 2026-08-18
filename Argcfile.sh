@@ -372,6 +372,36 @@ edit-users() {
 	echo "Uploaded successfully. Authelia will reload the configuration."
 }
 
+# @cmd Run Zulip's manage.py in the cluster
+#
+# For example, generate a link to create a new organization:
+#   argc zulip-manage generate_realm_creation_link
+# @arg    args~           Arguments passed to manage.py
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @meta require-tools kubectl
+zulip-manage() {
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
+	kubectl exec -it deployment/zulip -c zulip -- \
+		runuser -u zulip -- \
+		/home/zulip/deployments/current/manage.py ${argc_args+"${argc_args[@]}"}
+}
+
+# @cmd Run the Authelia CLI in the cluster
+#
+# For example, generate a password hash:
+#   argc authelia crypto hash generate
+# @arg    args~           Arguments passed to the authelia command
+# @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
+# @meta require-tools kubectl
+authelia() {
+	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
+	if [[ ${argc_args#} -eq 0 ]]; then
+		argc_args=(--help)
+	fi
+	kubectl exec -it -n admin deployments/authelia -- \
+		authelia ${argc_args+"${argc_args[@]}"}
+}
+
 # @cmd Activate the named environment
 #
 # Use this to set defaults for various environment variables.

@@ -12,7 +12,7 @@ To manage users, you need to edit the users yml database manually. Authelia init
 
 ```bash
 # Generate a password hash
-kubectl exec -it -n admin deployments/authelia -- authelia crypto hash generate
+argc authelia crypto hash generate
 ```
 
 ### Access control
@@ -80,5 +80,5 @@ You can configure OpenID clients by updating the environment configuration. The 
 
 ```bash
 # Generate a client secret and hash
-kubectl exec -it -n admin deployments/authelia -- authelia crypto hash generate --random
+argc authelia crypto hash generate --random
 ```
