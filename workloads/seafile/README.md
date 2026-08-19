@@ -17,6 +17,9 @@ kubectl exec -it deployment/seafile -- /bin/bash
 sed -i 's/memcached:11211/localhost:11211/' conf/seahub_settings.py
 # I also choose to disable search. Note that ElasticSearch is not in the manifests.
 sed -i '/\[INDEX FILES\]/,/\[.*\]/ s/^enabled = true/enabled = false/' conf/seafevents.conf
+# Two gunicorn workers are plenty for this low-traffic instance; each
+# costs ~120MiB and the default is 5.
+sed -i 's/^workers = 5$/workers = 2/' conf/gunicorn.conf.py
 ```
 
 After doing that, restart the deployment using `kubectl rollout restart deployment seafile`. Then you can log in normally and set up the instance the way you like. Make sure to do these two things:
