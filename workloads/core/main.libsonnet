@@ -77,8 +77,8 @@ local utils = import 'utils.libsonnet';
               matchRule: 'Host(`traefik.' + config.domain + '`)',
               entryPoints: ['websecure'],
               middlewares: [{ name: $.auth_middleware }],
-              // NOTE: certificate is manually requested in cert-manager
-              // workload.
+              // NOTE: the wildcard certificate is minted by the tls-issuer
+              // workload; Traefik just consumes the secret here.
               tls: if config.wildcardCertificate then
                 { secretName: 'tls-' + config.domain }
               else

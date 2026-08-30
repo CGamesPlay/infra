@@ -20,7 +20,7 @@ local kappConfig = {
 local decls = {
   backup: import 'backup/main.libsonnet',
   core: import 'core/main.libsonnet',
-  'cert-manager': import 'cert-manager/main.libsonnet',
+  'tls-issuer': import 'tls-issuer/main.libsonnet',
   chess2online: import 'chess2online/main.libsonnet',
   forgejo: import 'forgejo/main.libsonnet',
   headscale: import 'headscale/main.libsonnet',

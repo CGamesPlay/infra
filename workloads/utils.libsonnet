@@ -18,9 +18,7 @@
     kind: 'Ingress',
     metadata: {
       name: ingress_config.app,
-      annotations: {
-        'cert-manager.io/cluster-issuer': 'letsencrypt',
-      } + if ingress_config.middlewares != [] then
+      annotations: if ingress_config.middlewares != [] then
         { 'traefik.ingress.kubernetes.io/router.middlewares': std.join(',', ingress_config.middlewares) }
       else {},
     } + if ingress_config.namespace != null then { namespace: ingress_config.namespace } else {},

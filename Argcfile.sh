@@ -166,19 +166,6 @@ destroy() {
 	rm -rf "env/${argc_environment:?}"
 }
 
-# @cmd Download external dependencies
-#
-# Required for each local checkout.
-prepare() {
-	if [ ! -f workloads/cert-manager/cert-manager.yml ]; then
-		curl -fsSL https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.yaml -o workloads/cert-manager/cert-manager.yml
-		if ! shasum -c workloads/cert-manager/cert-manager.yml.sum; then
-			rm workloads/cert-manager/cert-manager.yml
-			exit 1
-		fi
-	fi
-}
-
 # @cmd List all pod container images as JSON
 # @option -e --environment![`choose_env`] $CLUSTER_ENVIRONMENT  Environment to work on
 # @option -o --output                     Output file path (defaults to stdout)
