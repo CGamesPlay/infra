@@ -382,7 +382,7 @@ zulip-manage() {
 # @meta require-tools kubectl
 authelia() {
 	export KUBECONFIG="env/${argc_environment:?}/kubeconfig.yml"
-	if [[ ${argc_args#} -eq 0 ]]; then
+	if [[ ! ${argc_args+1} ]]; then
 		argc_args=(--help)
 	fi
 	kubectl exec -it -n admin deployments/authelia -- \
